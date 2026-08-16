@@ -12,7 +12,7 @@ OpenAI Codex assisted with competition research, planning synthesis, documentati
 
 - General lessons from earlier MortalOS, CockroachDB hackathon, and Continuum Memory Firewall work informed the emphasis on exact artifact identity, browser evidence, immutable history, and narrow claim boundaries.
 - A local QuietOps prototype and verification materials were created on 2026-08-15 before this repository was published. They are not included in this initial planning-only commit.
-- Any later import of local prototype material must be reviewed for event eligibility, provenance, third-party obligations, and accurate history before publication.
+- Any later import of local prototype material must pass the [eligibility and provenance gate](PROVENANCE_LEDGER.md), including event eligibility, file-level provenance, third-party obligations, and accurate history review, before publication.
 - No implementation code from the named earlier projects is included here or represented as new QuietOps code.
 
 ## Planned third-party components

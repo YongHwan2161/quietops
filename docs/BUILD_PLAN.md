@@ -5,7 +5,8 @@ This plan is sequenced so that each stage can fail closed and be verified before
 ## Stage 0 — Planning baseline
 
 - Freeze scope, requirements, trust boundaries, submission obligations, disclosures, and outcome vocabulary.
-- Gate: repository contains documentation and license only; no code, secrets, deployment, or generated evidence.
+- Complete the [eligibility and provenance gate](PROVENANCE_LEDGER.md) before any implementation file, executable configuration, generated evidence, or imported asset is published.
+- Gate: the planning-only baseline is PASS, while implementation publication remains HOLD until every candidate file has an evidence-backed provenance decision and current event-rule review.
 
 ## Stage 1 — Workspace and contracts
 

@@ -22,6 +22,7 @@ Small teams repeatedly reconstruct release readiness from commits, CI checks, de
 - [Product requirements](docs/PRODUCT_REQUIREMENTS.md)
 - [Technical plan](docs/TECHNICAL_PLAN.md)
 - [Build and verification plan](docs/BUILD_PLAN.md)
+- [Eligibility and provenance gate](docs/PROVENANCE_LEDGER.md)
 - [Submission plan](docs/SUBMISSION_PLAN.md)
 - [Disclosures and claim boundaries](docs/DISCLOSURES.md)
 

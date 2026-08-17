@@ -2,18 +2,18 @@
 
 ## Repository phase
 
-This initial public repository is planning-only. It contains Markdown planning documents and an MIT license. It contains no application code, executable configuration, credentials, deployment, or generated verification evidence.
+This public repository currently contains planning documents and an MIT license. QuietOps implementation will be authored incrementally in this repository after the planning baseline; implementation, deployment, and verification claims remain absent until the corresponding code and evidence are published.
 
 ## AI assistance
 
-OpenAI Codex assisted with competition research, planning synthesis, documentation drafting, and repository preparation. Any later AI-assisted implementation or submission material will be reviewed, tested, and disclosed where relevant.
+OpenAI Codex assisted with competition research, planning synthesis, documentation drafting, repository preparation, and may assist with later implementation. AI-assisted work will be reviewed, tested, and disclosed where relevant.
 
-## Prior work boundary
+## Fresh implementation and reference boundary
 
-- General lessons from earlier MortalOS, CockroachDB hackathon, and Continuum Memory Firewall work informed the emphasis on exact artifact identity, browser evidence, immutable history, and narrow claim boundaries.
-- A local QuietOps prototype and verification materials were created on 2026-08-15 before this repository was published. They are not included in this initial planning-only commit.
-- Any later import of local prototype material must pass the [eligibility and provenance gate](PROVENANCE_LEDGER.md), including event eligibility, file-level provenance, third-party obligations, and accurate history review, before publication.
-- No implementation code from the named earlier projects is included here or represented as new QuietOps code.
+- QuietOps implementation code, executable configuration, tests, fixtures, and assets will be newly authored in this repository.
+- General lessons from MortalOS, the CockroachDB hackathon project, and Continuum Memory Firewall may inform design decisions, including exact artifact identity, browser evidence, immutable history, and narrow claim boundaries.
+- Those earlier projects are `REFERENCE_ONLY`: their concepts and lessons may be studied, but their implementation bytes are not represented as new QuietOps work.
+- If code, configuration, tests, fixtures, assets, or data from an earlier project are ever incorporated, that material must be identified explicitly and reviewed for eligibility, license, attribution, and disclosure before publication.
 
 ## Planned third-party components
 

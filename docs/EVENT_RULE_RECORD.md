@@ -2,7 +2,7 @@
 
 ## Purpose and authority
 
-This is a point-in-time evidence record for the QuietOps eligibility and provenance gate. It records official event data returned by the signed-in Devpost MCP session; it does not replace the [official rules page](https://agentsforhumans.devpost.com/rules), certify personal eligibility, or authorize implementation publication.
+This is a point-in-time evidence record for the QuietOps eligibility and provenance policy. It records official event data returned by the signed-in Devpost MCP session; it does not replace the [official rules page](https://agentsforhumans.devpost.com/rules), certify personal eligibility, or prove future implementation claims.
 
 > A note on accuracy: this guide is a helper. The information on the Devpost website is the correct and accurate version — if there is ever any discrepancy between what you read here and what the website says, the website prevails.
 
@@ -45,7 +45,7 @@ The official eligibility summary states:
 
 Decision: `PARTICIPANT_ATTESTED_NOT_INDEPENDENTLY_CERTIFIED`.
 
-## New-work and prior-work rule
+## New-work and reference boundary
 
 The official rule states:
 
@@ -55,12 +55,10 @@ Current QuietOps assessment:
 
 | Evidence | Decision | Boundary |
 | --- | --- | --- |
-| Reported local prototype creation date: 2026-08-15 | `TEMPORAL_WINDOW_PASS` | The reported date is after the official submission start. It is not yet bound to an immutable file manifest. |
-| Local prototype bytes | `HOLD_PROVENANCE_PENDING` | No implementation byte may be published until the snapshot manifest and file-level ledger pass. |
-| Earlier MortalOS, CockroachDB hackathon, and Continuum Memory Firewall implementation | `BLOCK` | General lessons only under the current plan; implementation code is outside the import scope. |
-| Codex and AI assistance | `DISCLOSURE_REQUIRED` | AI assistance is allowed by the quoted rule but remains explicitly disclosed. |
-
-The temporal comparison does not prove that every file was created during the submission period and does not authorize import.
+| Fresh QuietOps implementation in this repository | `READY_TO_BUILD` | Implementation will be newly authored in repository history after the planning baseline. This decision does not prove code that has not yet been written. |
+| MortalOS, CockroachDB hackathon, and Continuum Memory Firewall | `REFERENCE_ONLY` | Concepts and lessons may inform design; no implementation bytes are treated as new QuietOps work. |
+| Any later incorporation of pre-existing code or assets | `HOLD_REVIEW_REQUIRED` | Exact source, license, attribution, eligibility, and disclosure must be reviewed before publication. |
+| Codex and other AI assistance | `DISCLOSURE_REQUIRED` | AI coding assistants are allowed by the quoted rule, with assistance disclosed accurately. |
 
 ## Third-party rule
 
@@ -68,7 +66,7 @@ The official rule states:
 
 > Third Party Integrations: If a Project integrates any third-party SDK, APIs and/or data, Entrant must be authorized to use them in accordance with any terms and conditions or licensing requirements of the tool.
 
-Decision: all packages, templates, snippets, APIs, datasets, images, and generated assets remain `HOLD_THIRD_PARTY_REVIEW_PENDING` until the inventory required by the provenance gate is complete.
+Decision: packages, templates, snippets, APIs, datasets, images, and generated assets require exact source or version, license or terms review, and any necessary attribution before publication.
 
 ## Submission obligations
 
@@ -98,21 +96,21 @@ Decision: `HOLD_OFFICIAL_CLARIFICATION`. This inconsistency affects only the opt
 | Gate | Decision |
 | --- | --- |
 | Official event data available and complete | `PASS_SNAPSHOT_CURRENT` |
-| Reported prototype date within submission window | `TEMPORAL_WINDOW_PASS` |
-| Personal eligibility | `PARTICIPANT_ATTESTED_NOT_INDEPENDENTLY_CERTIFIED` |
-| Implementation publication | `HOLD_PROVENANCE_PENDING` |
-| Third-party publication | `HOLD_THIRD_PARTY_REVIEW_PENDING` |
+| Fresh implementation policy | `READY_TO_BUILD` |
+| Earlier-project concepts and lessons | `REFERENCE_ONLY` |
+| Incorporated pre-existing bytes | `HOLD_REVIEW_REQUIRED` |
+| Third-party publication | `REVIEW_PER_DEPENDENCY` |
 | Optional blog | `HOLD_OFFICIAL_CLARIFICATION` |
 | AWS, Bedrock, AgentCore, deployment, video, and Devpost submission claims | `HOLD_NOT_VERIFIED` |
 
-This record satisfies the provenance gate's point-in-time event-rule evidence requirement only. It does not satisfy the immutable source snapshot, file-level provenance, third-party inventory, or final submission re-verification requirements.
+This record satisfies the event-rule evidence requirement for starting fresh implementation in this repository. It does not prove future functionality, dependency compliance, live AWS behavior, deployment, video, or submission.
 
 ## Refresh and invalidation
 
 Refresh this record from the official Devpost MCP:
 
-- immediately before reviewing any implementation import;
 - after any rules, dates, announcements, or submission-field change;
+- before incorporating any pre-existing implementation bytes or assets;
 - before freezing the final public repository and submission;
 - after any organizer clarification affecting a recorded HOLD.
 

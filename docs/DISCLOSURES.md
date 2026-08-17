@@ -2,7 +2,7 @@
 
 ## Repository phase
 
-This public repository currently contains planning documents and an MIT license. QuietOps implementation will be authored incrementally in this repository after the planning baseline; implementation, deployment, and verification claims remain absent until the corresponding code and evidence are published.
+This public repository contains planning documents, an MIT license, and the first newly authored QuietOps implementation increment: a TypeScript workspace and public contract kernel. Agent, policy, storage, application, deployment, and live-verification claims remain absent until the corresponding code and evidence are published.
 
 ## AI assistance
 
@@ -17,7 +17,7 @@ OpenAI Codex assisted with competition research, planning synthesis, documentati
 
 ## Planned third-party components
 
-The current technical direction anticipates TypeScript, React, Fastify, SQLite, Playwright, Strands Agents SDK, and potentially AWS Bedrock or AgentCore. Final versions, licenses, and actual usage will be documented only after implementation choices are made.
+The contract kernel uses TypeScript and Prettier as development tools plus the Node.js type definitions; their exact versions and licenses are recorded in the provenance ledger. React, Fastify, SQLite, Playwright, Strands Agents SDK, and potentially AWS Bedrock or AgentCore remain anticipated only. Their versions, licenses, and actual usage will be documented only if introduced.
 
 ## Claims we may make only with evidence
 

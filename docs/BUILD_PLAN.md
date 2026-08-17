@@ -15,6 +15,13 @@ This plan is sequenced so that each stage can fail closed and be verified before
 - Define candidate, policy, evidence, event, outcome, and decision schemas.
 - Gate: clean install, type checking, format checking, contract tests, dependency/license review, and secret scan pass.
 
+### Stage 1A — Contract kernel
+
+- Add the reproducible npm workspace and a single `@quietops/contracts` package.
+- Establish candidate identity, evidence status, evaluation outcome, and human-decision vocabulary as runtime-validated public contracts.
+- Verify exact candidate serialization, full commit identity, closed vocabulary parsing, and the rule that only `Verified` is verified.
+- Status: implemented and locally verified; the remainder of Stage 1 stays open.
+
 ## Stage 2 — Deterministic domain and audit storage
 
 - Implement lifecycle transitions, the exhaustive policy matrix, attention ordering, and allowed actions.

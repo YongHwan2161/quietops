@@ -1,8 +1,8 @@
 # QuietOps
 
-QuietOps is a planned release-evidence steward for solo developers and small software teams. It is intended to collect read-only release evidence, evaluate that evidence against explicit policy, and ask a human only when a genuine decision remains.
+QuietOps is an incrementally built release-evidence steward for solo developers and small software teams. It is intended to collect read-only release evidence, evaluate that evidence against explicit policy, and ask a human only when a genuine decision remains.
 
-> Planning-only repository: this initial repository contains no application code, executable configuration, credentials, deployment, or generated verification artifacts.
+> Early implementation: the repository currently provides only the TypeScript workspace and runtime-validated public contract kernel. It does not yet provide an agent, policy engine, application, deployment, or live verification evidence.
 
 ## Why QuietOps
 
@@ -29,11 +29,20 @@ Small teams repeatedly reconstruct release readiness from commits, CI checks, de
 
 ## Current status
 
-- Phase: repository and planning baseline
-- Implementation: not published
+- Phase: Stage 1 — workspace and contracts
+- Implementation: candidate identity and shared vocabulary contract kernel
 - Live AWS/Bedrock validation: not performed for this repository
 - Deployment: not performed
 - Devpost project submission: not performed from this repository
+
+## Local verification
+
+Requires Node.js 22 or later.
+
+```bash
+npm ci
+npm run verify
+```
 
 ## Intended competition
 

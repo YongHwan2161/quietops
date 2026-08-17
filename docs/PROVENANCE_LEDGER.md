@@ -17,13 +17,13 @@ The gate does not determine competition eligibility by itself. Current official 
 | Source class | Current decision | Evidence and boundary |
 | --- | --- | --- |
 | Initial planning baseline | `PASS` | Commit `98cc17c78adb98a8e185654125f8e31725619694`; eight documentation/license files; planning-only; AI assistance disclosed; MIT licensed. |
-| Local QuietOps prototype created 2026-08-15 | `HOLD` | Not present in the initial public commit. Import requires a source snapshot manifest, current event-rule review, file-level classification, license review, and disclosure decision. |
+| Local QuietOps prototype created 2026-08-15 | `HOLD` | The reported date is within the submission period recorded in the [official event rule record](EVENT_RULE_RECORD.md), but the prototype is not present in the initial public commit. Import still requires a source snapshot manifest, file-level classification, license review, and disclosure decision. |
 | MortalOS, CockroachDB hackathon, and Continuum Memory Firewall implementation code | `BLOCK` | General lessons may inform design, but implementation code is outside the QuietOps import scope unless this plan is explicitly revised and separately reviewed. |
 | Third-party packages, templates, snippets, datasets, images, and generated assets | `HOLD` | Each item requires an exact version or source reference, license/terms review, attribution decision, and evidence of permitted use. |
 
 ## Required evidence before implementation publication
 
-1. **Current event-rule record**
+1. **[Current event-rule record](EVENT_RULE_RECORD.md)**
    - authoritative URL;
    - verification timestamp and reviewer;
    - eligibility window and new-work or prior-work requirements;
@@ -65,7 +65,7 @@ The gate does not determine competition eligibility by itself. Current official 
 
 Stage 0 may authorize implementation publication only when:
 
-- the official-rule record is current and has no unresolved eligibility blocker;
+- the [official event rule record](EVENT_RULE_RECORD.md) is current and has no unresolved eligibility blocker for the proposed publication set;
 - every proposed file is represented in the immutable manifest and file-level ledger;
 - every proposed file is `PASS`, with zero `HOLD` or `BLOCK` files in the publication set;
 - third-party obligations and AI/prior-work disclosures are complete;

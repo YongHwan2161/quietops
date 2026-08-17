@@ -15,13 +15,13 @@ The policy does not determine competition eligibility by itself. Current officia
 
 ## Current authority
 
-| Source class | Current decision | Evidence and boundary |
-| --- | --- | --- |
-| Planning baseline | `PASS` | Public repository history through commit `be8e3fcbee144b195e4ee73031d958ccba5bfeb9`; planning documents and MIT license only. |
-| New QuietOps implementation authored in this repository | `ELIGIBLE_FOR_REVIEW` | Git commits and diffs provide origin evidence. Each change must still pass quality, secret, dependency, and claim checks. |
-| MortalOS, CockroachDB hackathon, and Continuum Memory Firewall | `REFERENCE_ONLY` | Concepts and lessons may inform design; their implementation bytes are not represented as new QuietOps work. |
-| Pre-existing code, configuration, tests, fixtures, assets, or data proposed for incorporation | `HOLD` | Requires exact source, eligibility, license, attribution, transformation, and disclosure review before publication. |
-| Third-party packages, templates, snippets, datasets, images, APIs, and generated assets | `HOLD` | Requires exact version or source, license or terms review, attribution decision, and evidence of permitted use. |
+| Source class                                                                                  | Current decision      | Evidence and boundary                                                                                                         |
+| --------------------------------------------------------------------------------------------- | --------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Planning baseline                                                                             | `PASS`                | Public repository history through commit `311238afe40b1b7d7d28c58eca40ccbd18aae892`; planning documents and MIT license only. |
+| New QuietOps implementation authored in this repository                                       | `ELIGIBLE_FOR_REVIEW` | Git commits and diffs provide origin evidence. Each change must still pass quality, secret, dependency, and claim checks.     |
+| MortalOS, CockroachDB hackathon, and Continuum Memory Firewall                                | `REFERENCE_ONLY`      | Concepts and lessons may inform design; their implementation bytes are not represented as new QuietOps work.                  |
+| Pre-existing code, configuration, tests, fixtures, assets, or data proposed for incorporation | `HOLD`                | Requires exact source, eligibility, license, attribution, transformation, and disclosure review before publication.           |
+| Third-party packages, templates, snippets, datasets, images, APIs, and generated assets       | `HOLD`                | Requires exact version or source, license or terms review, attribution decision, and evidence of permitted use.               |
 
 ## Fresh implementation evidence
 
@@ -47,9 +47,13 @@ Copying or transforming implementation bytes from an earlier project is not `REF
 
 Record each dependency or incorporated asset when it is first introduced:
 
-| Package or asset | Version or source | License or terms | Use | Attribution required | Decision | Evidence |
-| --- | --- | --- | --- | --- | --- | --- |
-| _Populate when introduced_ |  |  |  |  | `HOLD` |  |
+| Package or asset                             | Version or source  | License or terms | Use                                                      | Attribution required                  | Decision | Evidence                                                                                                 |
+| -------------------------------------------- | ------------------ | ---------------- | -------------------------------------------------------- | ------------------------------------- | -------- | -------------------------------------------------------------------------------------------------------- |
+| TypeScript                                   | `7.0.2` from npm   | Apache-2.0       | Compiler and static type checking                        | No separate attribution file required | `PASS`   | Exact version in `package-lock.json`; package metadata and included license reviewed.                    |
+| `@typescript/typescript-*` platform packages | `7.0.2` from npm   | Apache-2.0       | Optional native compiler selected by operating system    | No separate attribution file required | `PASS`   | Exact platform package set and integrity hashes in `package-lock.json`; same TypeScript license family.  |
+| Prettier                                     | `3.9.6` from npm   | MIT              | Repository format checking                               | No separate attribution file required | `PASS`   | Exact version in `package-lock.json`; package metadata and included license reviewed.                    |
+| `@types/node`                                | `22.20.1` from npm | MIT              | Node.js compile-time declarations for tests              | No separate attribution file required | `PASS`   | Exact version in `package-lock.json`; package metadata and included license reviewed.                    |
+| `undici-types`                               | `6.21.0` from npm  | MIT              | Transitive fetch type declarations used by `@types/node` | No separate attribution file required | `PASS`   | Exact version and integrity hash in `package-lock.json`; package metadata and included license reviewed. |
 
 ## Gate algorithm
 

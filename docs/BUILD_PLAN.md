@@ -2,17 +2,18 @@
 
 This plan is sequenced so that each stage can fail closed and be verified before the next stage begins. No implementation is included in the initial repository.
 
-## Stage 0 — Planning baseline
+## Stage 0 — Planning and fresh-implementation baseline
 
 - Freeze scope, requirements, trust boundaries, submission obligations, disclosures, and outcome vocabulary.
-- Complete the [eligibility and provenance gate](PROVENANCE_LEDGER.md) before any implementation file, executable configuration, generated evidence, or imported asset is published.
-- Gate: the planning-only baseline is PASS, while implementation publication remains HOLD until every candidate file has an evidence-backed provenance decision and current event-rule review.
+- Record the official event rules and the distinction between fresh QuietOps implementation, conceptual references, incorporated pre-existing material, and third-party dependencies.
+- Permit MortalOS, the CockroachDB hackathon project, and Continuum Memory Firewall as `REFERENCE_ONLY` design inputs without treating their implementation bytes as new QuietOps work.
+- Gate: PASS when the fresh-implementation policy is merged into `main`; Stage 1 is the first implementation stage.
 
 ## Stage 1 — Workspace and contracts
 
 - Scaffold the TypeScript workspace and strict static-quality gate.
 - Define candidate, policy, evidence, event, outcome, and decision schemas.
-- Gate: clean install, type checking, format checking, contract tests, and secret scan pass.
+- Gate: clean install, type checking, format checking, contract tests, dependency/license review, and secret scan pass.
 
 ## Stage 2 — Deterministic domain and audit storage
 
@@ -58,4 +59,4 @@ Each of the following requires separate authorization and current evidence:
 
 ## Definition of done
 
-P0 is complete only when the reproducible judge path proves both Ready and refusal-to-claim-readiness behavior, every public claim has evidence, AI and third-party use are disclosed, and live actions remain clearly separated from local verification.
+P0 is complete only when the reproducible judge path proves both Ready and refusal-to-claim-readiness behavior, every public claim has evidence, AI and third-party use are disclosed, conceptual references are distinguished from incorporated bytes, and live actions remain clearly separated from local verification.

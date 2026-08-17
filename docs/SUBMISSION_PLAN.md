@@ -16,7 +16,7 @@ This is a planning snapshot dated 2026-08-16. The official event page and rules 
 - Public demo video of no more than five minutes.
 - Credential-free Ready and mismatch judge path.
 - Strands usage explanation and, if actually completed, separately labeled live validation evidence.
-- AI/Codex, prior-work, and third-party disclosures.
+- AI/Codex assistance, conceptual references to earlier projects, and actual third-party or incorporated material disclosed with clear boundaries.
 - Optional hosted demo or AgentCore evidence only after live verification.
 
 ## Five-minute story
@@ -34,6 +34,9 @@ This is a planning snapshot dated 2026-08-16. The official event page and rules 
 - Confirm the repository and video are public and accessible in a signed-out browser.
 - Confirm README instructions work from a clean environment.
 - Confirm license detection and About metadata.
+- Confirm implementation work is traceable to QuietOps repository history and any incorporated pre-existing bytes are explicitly disclosed.
+- Confirm conceptual references are not represented as copied implementation.
+- Confirm every third-party dependency and asset has an exact source or version and compatible license or terms.
 - Confirm demo, repository, architecture, and submission text describe the same behavior.
 - Confirm every live-cloud, performance, security, and zero-mutation claim has current evidence.
 - Freeze exact commit, image digest, receipt hashes, URLs, and final text before submission.

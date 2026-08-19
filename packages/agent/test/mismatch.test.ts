@@ -2,8 +2,13 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
+  BEDROCK_CONFIGURATION_HOLD,
+  BedrockConfigurationError,
+  EvidenceToolBudget,
   MISMATCH_FIXTURE,
+  createBedrockMismatchModel,
   evaluateReleaseMismatch,
+  readBedrockMismatchConfiguration,
   runMismatchSlice,
 } from "../src/index.js";
 
@@ -74,5 +79,57 @@ describe("Strands deployed-SHA mismatch slice", () => {
         ]),
       /exactly one verified Source revision/,
     );
+  });
+
+  it("fails closed before model construction when Bedrock settings are absent", () => {
+    assert.throws(
+      () => createBedrockMismatchModel({}),
+      (error: unknown) => {
+        assert.equal(error instanceof BedrockConfigurationError, true);
+        assert.equal(
+          (error as BedrockConfigurationError).code,
+          BEDROCK_CONFIGURATION_HOLD,
+        );
+        assert.deepEqual((error as BedrockConfigurationError).missing, [
+          "AWS_REGION",
+          "QUIETOPS_MODEL_ID",
+        ]);
+        return true;
+      },
+    );
+  });
+
+  it("constructs the configured Bedrock model without invoking it", () => {
+    const configuration = readBedrockMismatchConfiguration({
+      AWS_REGION: " us-west-2 ",
+      QUIETOPS_MODEL_ID: " example.model-v1 ",
+    });
+    const model = createBedrockMismatchModel({
+      AWS_REGION: configuration.region,
+      QUIETOPS_MODEL_ID: configuration.modelId,
+    });
+
+    assert.deepEqual(configuration, {
+      region: "us-west-2",
+      modelId: "example.model-v1",
+    });
+    assert.equal(model.getConfig().modelId, "example.model-v1");
+  });
+
+  it("rejects duplicate and non-allowlisted tool calls within one invocation", () => {
+    const budget = new EvidenceToolBudget();
+
+    assert.equal(budget.checkAndRecord("observe_source_revision"), undefined);
+    assert.match(
+      budget.checkAndRecord("observe_source_revision") ?? "",
+      /one-call budget/,
+    );
+    assert.match(
+      budget.checkAndRecord("deploy_release") ?? "",
+      /outside the QuietOps evidence allowlist/,
+    );
+
+    budget.reset();
+    assert.equal(budget.checkAndRecord("observe_source_revision"), undefined);
   });
 });

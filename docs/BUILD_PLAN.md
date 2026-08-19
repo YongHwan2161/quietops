@@ -49,6 +49,14 @@ This plan is sequenced so that each stage can fail closed and be verified before
 - Refuse `Ready` when the deployed revision differs even if model narration claims readiness, and expose only `Reject` or `Re-check requested`.
 - Status: implemented when clean verification and the draft pull request check pass; live AWS/Bedrock and all external mutations remain HOLD.
 
+### Stage 3B — Selectable Bedrock model path
+
+- Inject a Strands `Model` into the existing mismatch slice while preserving the credential-free scripted path as the default.
+- Add an explicit `BedrockModel` command that requires non-empty `AWS_REGION` and `QUIETOPS_MODEL_ID` and relies on the AWS SDK default credential chain without inspecting credential values.
+- Enforce an allowlist of the three evidence tools with one call per tool and three calls total for every invocation.
+- Keep the deterministic mismatch policy authoritative over model narration and keep all tools fixture-backed with zero external mutations.
+- Status: implementation and credential-free verification may pass independently; live AWS/Bedrock invocation remains HOLD until separately authorized and evidenced.
+
 ## Stage 4 — Browser evidence and orchestration
 
 - Add one isolated Playwright browser assertion path.

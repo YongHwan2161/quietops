@@ -10,6 +10,14 @@ import type {
 
 const EMPTY_INPUT = z.object({}).strict();
 
+export const EVIDENCE_TOOL_NAMES = Object.freeze([
+  "observe_source_revision",
+  "observe_ci_status",
+  "observe_deployed_revision",
+] as const);
+
+export type EvidenceToolName = (typeof EVIDENCE_TOOL_NAMES)[number];
+
 export function createEvidenceRecorder(): EvidenceRecorder {
   return {
     observations: [],
@@ -23,7 +31,7 @@ export function createEvidenceTools(
 ): readonly InvokableTool<Record<string, never>, JSONValue>[] {
   return Object.freeze([
     observationTool(
-      "observe_source_revision",
+      EVIDENCE_TOOL_NAMES[0],
       "Read the exact source commit for the release candidate.",
       "source-1",
       "Source revision",
@@ -31,7 +39,7 @@ export function createEvidenceTools(
       recorder,
     ),
     observationTool(
-      "observe_ci_status",
+      EVIDENCE_TOOL_NAMES[1],
       "Read the required CI status for the release candidate.",
       "ci-1",
       "CI status",
@@ -39,7 +47,7 @@ export function createEvidenceTools(
       recorder,
     ),
     observationTool(
-      "observe_deployed_revision",
+      EVIDENCE_TOOL_NAMES[2],
       "Read the exact revision reported by the deployment marker.",
       "deployment-1",
       "Deployed revision",

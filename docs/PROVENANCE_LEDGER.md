@@ -54,6 +54,8 @@ Record each dependency or incorporated asset when it is first introduced:
 | Prettier                                     | `3.9.6` from npm   | MIT              | Repository format checking                               | No separate attribution file required | `PASS`   | Exact version in `package-lock.json`; package metadata and included license reviewed.                    |
 | `@types/node`                                | `22.20.1` from npm | MIT              | Node.js compile-time declarations for tests              | No separate attribution file required | `PASS`   | Exact version in `package-lock.json`; package metadata and included license reviewed.                    |
 | `undici-types`                               | `6.21.0` from npm  | MIT              | Transitive fetch type declarations used by `@types/node` | No separate attribution file required | `PASS`   | Exact version and integrity hash in `package-lock.json`; package metadata and included license reviewed. |
+| `actions/checkout`                           | `3d3c42e5aac5ba805825da76410c181273ba90b1` (`v7.0.1`) | MIT | Read-only CI source checkout | No separate attribution file required | `PASS` | Full commit SHA pinned in `verify.yml`; license reviewed at the same commit. |
+| `actions/setup-node`                         | `820762786026740c76f36085b0efc47a31fe5020` (`v7.0.0`) | MIT | Install the pinned CI Node.js runtime | No separate attribution file required | `PASS` | Full commit SHA pinned in `verify.yml`; license reviewed at the same commit. |
 
 ## Gate algorithm
 

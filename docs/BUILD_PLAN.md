@@ -22,6 +22,13 @@ This plan is sequenced so that each stage can fail closed and be verified before
 - Verify exact candidate serialization, full commit identity, closed vocabulary parsing, and the rule that only `Verified` is verified.
 - Status: implemented and locally verified; the remainder of Stage 1 stays open.
 
+### Stage 1B — Remote verification gate
+
+- Run clean install and the repository verification script for every pull request and `main` push.
+- Pin the runner version, Node.js version, and external actions; grant only read access to repository contents.
+- Cancel superseded runs and bound each verification job to ten minutes.
+- Status: implemented when the workflow passes on its own pull request; the remainder of Stage 1 stays open.
+
 ## Stage 2 — Deterministic domain and audit storage
 
 - Implement lifecycle transitions, the exhaustive policy matrix, attention ordering, and allowed actions.

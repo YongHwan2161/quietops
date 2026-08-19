@@ -2,7 +2,7 @@
 
 QuietOps is an incrementally built release-evidence steward for solo developers and small software teams. It is intended to collect read-only release evidence, evaluate that evidence against explicit policy, and ask a human only when a genuine decision remains.
 
-> Early implementation: the repository provides a TypeScript contract kernel and one credential-free Strands agent slice for a deployed-revision mismatch. It does not yet provide storage, an application, deployment, or live AWS/Bedrock verification evidence.
+> Early implementation: the repository provides a TypeScript contract kernel and one Strands agent slice for a deployed-revision mismatch. The slice has a credential-free scripted path and an optional Bedrock model path, but no live AWS/Bedrock verification evidence. It does not yet provide storage, an application, or deployment.
 
 ## Why QuietOps
 
@@ -29,8 +29,8 @@ Small teams repeatedly reconstruct release readiness from commits, CI checks, de
 
 ## Current status
 
-- Active increment: Stage 3A — first agent and evidence boundary slice; the broader Stage 1 and Stage 2 plans remain incomplete
-- Implementation: candidate identity, shared vocabulary, and a credential-free deployed-SHA mismatch path using the pinned Strands Agents SDK
+- Active increment: Stage 3B — optional Bedrock model selection for the first agent slice; the broader Stage 1 and Stage 2 plans remain incomplete
+- Implementation: candidate identity, shared vocabulary, and scripted or Bedrock-selectable deployed-SHA mismatch paths using the pinned Strands Agents SDK
 - Live AWS/Bedrock validation: not performed for this repository
 - Deployment: not performed
 - Devpost project submission: not performed from this repository
@@ -46,6 +46,14 @@ npm run demo:mismatch
 ```
 
 The mismatch demo runs the actual Strands `Agent` loop with three fixture-backed read-only tools. Its scripted model intentionally narrates `Ready`; the deterministic policy still returns `Needs decision`, exposes only `Reject` and `Re-check requested`, and records `externalMutations: 0`. Fixture execution is not live provider validation.
+
+An explicit live Bedrock command is also available:
+
+```bash
+AWS_REGION=us-west-2 QUIETOPS_MODEL_ID=your-enabled-model-id npm run demo:mismatch:bedrock
+```
+
+The command uses the AWS SDK default credential chain without reading or printing credential values. It fails closed with `AWS_REGION_OR_QUIETOPS_MODEL_ID_MISSING` before model construction if either named setting is empty. Both model paths share a strict allowlist and a one-call-per-tool, three-call-total budget; deterministic policy remains authoritative. This repository has not executed or verified the live command.
 
 ## Intended competition
 

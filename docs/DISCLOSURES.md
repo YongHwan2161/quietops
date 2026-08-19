@@ -2,7 +2,7 @@
 
 ## Repository phase
 
-This public repository contains planning documents, an MIT license, a TypeScript contract kernel, and one newly authored credential-free Strands agent slice for a deployed-revision mismatch. Storage, application, deployment, and live-verification claims remain absent until the corresponding code and evidence are published.
+This public repository contains planning documents, an MIT license, a TypeScript contract kernel, and one newly authored Strands agent slice for a deployed-revision mismatch. The slice defaults to a credential-free scripted model and includes an optional Bedrock model-selection path. Storage, application, deployment, and live-verification claims remain absent until the corresponding code and evidence are published.
 
 ## AI assistance
 
@@ -17,7 +17,7 @@ OpenAI Codex assisted with competition research, planning synthesis, documentati
 
 ## Planned third-party components
 
-The contract kernel uses TypeScript and Prettier as development tools plus the Node.js type definitions. The mismatch slice uses the Strands Agents SDK and Zod. Their exact versions and licenses are recorded in the provenance ledger. React, Fastify, SQLite, Playwright, and potentially AWS Bedrock or AgentCore remain anticipated only. Their versions, licenses, and actual usage will be documented only if introduced.
+The contract kernel uses TypeScript and Prettier as development tools plus the Node.js type definitions. The mismatch slice uses the Strands Agents SDK and Zod. Its Bedrock path uses `BedrockModel`, already included in the pinned Strands SDK, and the AWS SDK default credential chain; no credential values are read or printed by QuietOps. Their exact versions and licenses are recorded in the provenance ledger. React, Fastify, SQLite, Playwright, and potentially AgentCore remain anticipated only. Their versions, licenses, and actual usage will be documented only if introduced.
 
 ## Claims we may make only with evidence
 

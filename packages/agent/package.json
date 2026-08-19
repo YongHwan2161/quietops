@@ -1,0 +1,32 @@
+{
+  "name": "@quietops/agent",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Credential-free Strands agent slice for QuietOps release evidence.",
+  "license": "MIT",
+  "type": "module",
+  "main": "dist/src/index.js",
+  "types": "dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/src/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc --build",
+    "clean": "tsc --build --clean && node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+    "demo:mismatch": "npm run build && node dist/src/cli.js",
+    "pretypecheck": "npm run build --workspace @quietops/contracts",
+    "test": "npm run build && node --test dist/test/*.test.js",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@quietops/contracts": "0.0.0",
+    "@strands-agents/sdk": "1.13.0",
+    "zod": "4.1.12"
+  }
+}

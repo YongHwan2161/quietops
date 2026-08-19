@@ -42,6 +42,13 @@ This plan is sequenced so that each stage can fail closed and be verified before
 - Build fresh Ready and mismatch fixture services plus bounded HTTP collectors.
 - Gate: deterministic agent tests prove that tool references and policy, not narration, control state; any live Bedrock check is reported separately as LIVE PASS or HOLD.
 
+### Stage 3A — Deployed-revision mismatch vertical slice
+
+- Pin the Strands Agents TypeScript SDK and execute its real agent loop with three credential-free, fixture-backed read-only tools.
+- Preserve source revision, CI status, and deployed revision as separately identified observations.
+- Refuse `Ready` when the deployed revision differs even if model narration claims readiness, and expose only `Reject` or `Re-check requested`.
+- Status: implemented when clean verification and the draft pull request check pass; live AWS/Bedrock and all external mutations remain HOLD.
+
 ## Stage 4 — Browser evidence and orchestration
 
 - Add one isolated Playwright browser assertion path.

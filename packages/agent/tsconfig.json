@@ -1,0 +1,19 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2023", "DOM", "ESNext.Disposable"],
+    "outDir": "dist",
+    "paths": {
+      "@quietops/contracts": ["./../contracts/src/index.ts"]
+    },
+    "rootDir": ".",
+    "tsBuildInfoFile": "dist/agent.tsbuildinfo",
+    "types": ["node"]
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts"],
+  "references": [
+    {
+      "path": "../contracts"
+    }
+  ]
+}

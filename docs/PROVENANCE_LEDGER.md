@@ -56,6 +56,8 @@ Record each dependency or incorporated asset when it is first introduced:
 | `undici-types`                               | `6.21.0` from npm  | MIT              | Transitive fetch type declarations used by `@types/node` | No separate attribution file required | `PASS`   | Exact version and integrity hash in `package-lock.json`; package metadata and included license reviewed. |
 | `actions/checkout`                           | `3d3c42e5aac5ba805825da76410c181273ba90b1` (`v7.0.1`) | MIT | Read-only CI source checkout | No separate attribution file required | `PASS` | Full commit SHA pinned in `verify.yml`; license reviewed at the same commit. |
 | `actions/setup-node`                         | `820762786026740c76f36085b0efc47a31fe5020` (`v7.0.0`) | MIT | Install the pinned CI Node.js runtime | No separate attribution file required | `PASS` | Full commit SHA pinned in `verify.yml`; license reviewed at the same commit. |
+| Strands Agents TypeScript SDK                | `1.13.0` from npm   | Apache-2.0       | Execute the bounded credential-free agent and tool loop | No separate attribution file required | `PASS` | Exact version and integrity hash in `package-lock.json`; npm metadata, official source, and included license reviewed. |
+| Zod                                          | `4.1.12` from npm   | MIT              | Runtime validation for the three Strands tool inputs    | No separate attribution file required | `PASS` | Exact version and integrity hash in `package-lock.json`; package metadata and included license reviewed. |
 
 ## Gate algorithm
 

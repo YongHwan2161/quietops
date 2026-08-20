@@ -1,0 +1,25 @@
+{
+  "name": "@quietops/storage",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Append-only SQLite ledger for QuietOps evaluations.",
+  "license": "MIT",
+  "type": "module",
+  "main": "dist/src/index.js",
+  "types": "dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/src/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc --build",
+    "clean": "tsc --build --clean && node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+    "test": "npm run build && node ../../scripts/run-with-sqlite.mjs --test dist/test/*.test.js",
+    "typecheck": "tsc --noEmit"
+  }
+}

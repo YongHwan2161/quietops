@@ -16,6 +16,23 @@ Browser UI
 
 No component in P0 will have deployment, merge, rollback, secret-management, or arbitrary shell authority.
 
+## Implemented Stage 4A-1 spine
+
+The current credential-free vertical slice implements the storage and application seam that a later browser will consume:
+
+```text
+Inbox/detail/timeline projections
+  <- EvaluationService
+    -> existing Ready/mismatch Strands runner
+    -> deterministic policy result
+    -> append-only SQLite evaluations, events, and idempotency receipts
+```
+
+- `@quietops/storage` uses the Node.js built-in `node:sqlite` API with foreign keys, strict tables, a single-decision index, and triggers that reject update or delete operations on evaluation, event, and idempotency tables.
+- `@quietops/application` persists the actual agent result rather than client-authored fixture JSON, reconstructs projections from stored events, records a bounded decision once, and creates a linked child evaluation for re-check.
+- A version-aware launcher enables SQLite explicitly on the local Node.js 22.12 runtime and uses the unflagged API on Node.js 22.13 or later, including the pinned CI runtime Node.js 22.22.3.
+- No server route, SSE stream, browser code, authentication, or live collector is implemented by this slice.
+
 ## Trust boundaries
 
 - Tool inputs are schema validated and restricted to configured targets.
@@ -49,6 +66,8 @@ Failed, Unknown, Stale, missing, foreign, fabricated, or duplicate evidence must
 ## API direction
 
 The planned API will provide inbox, evaluation creation/detail, event replay, decisions, re-check, audit export, demo reset, health, and readiness endpoints. Mutation requests will require idempotency keys, and SSE reconnection will resume from the last persisted event.
+
+Stage 4A-1 defines and verifies the inbox, evaluation-detail, and timeline projection shapes inside the application package. HTTP validation, status codes, authentication boundaries, SSE replay, and browser consumption remain future work.
 
 ## Deployment boundary
 

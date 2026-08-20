@@ -14,6 +14,7 @@
   "scripts": {
     "build": "npm run build --workspaces --if-present",
     "clean": "npm run clean --workspaces --if-present",
+    "demo:judge": "npm run demo:judge --workspace @quietops/agent",
     "demo:mismatch": "npm run demo:mismatch --workspace @quietops/agent",
     "demo:mismatch:bedrock": "npm run demo:mismatch:bedrock --workspace @quietops/agent",
     "format": "prettier --write package.json tsconfig.json \"packages/**/*.{json,ts}\"",

@@ -24,16 +24,33 @@ export interface EvidenceRecorder {
   readonly toolCalls: ToolCallReceipt[];
 }
 
-export interface MismatchFixture {
+export type ReleaseScenario = "ready" | "deployed-sha-mismatch";
+
+export interface ReleaseFixture<
+  Scenario extends ReleaseScenario = ReleaseScenario,
+> {
+  readonly scenario: Scenario;
   readonly expectedCommit: string;
   readonly sourceCommit: string;
   readonly ciStatus: "success";
   readonly deployedCommit: string;
 }
 
-export const MISMATCH_FIXTURE: MismatchFixture = Object.freeze({
-  expectedCommit: "9854d5cc21840c15652fea3e032b1711a940d57a",
-  sourceCommit: "9854d5cc21840c15652fea3e032b1711a940d57a",
+const READY_COMMIT = "9854d5cc21840c15652fea3e032b1711a940d57a";
+
+export const READY_FIXTURE: ReleaseFixture<"ready"> = Object.freeze({
+  scenario: "ready",
+  expectedCommit: READY_COMMIT,
+  sourceCommit: READY_COMMIT,
   ciStatus: "success",
-  deployedCommit: "311238afe40b1b7d7d28c58eca40ccbd18aae892",
+  deployedCommit: READY_COMMIT,
 });
+
+export const MISMATCH_FIXTURE: ReleaseFixture<"deployed-sha-mismatch"> =
+  Object.freeze({
+    scenario: "deployed-sha-mismatch",
+    expectedCommit: READY_COMMIT,
+    sourceCommit: READY_COMMIT,
+    ciStatus: "success",
+    deployedCommit: "311238afe40b1b7d7d28c58eca40ccbd18aae892",
+  });

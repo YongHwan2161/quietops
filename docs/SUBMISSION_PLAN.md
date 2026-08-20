@@ -44,5 +44,5 @@ This is a planning snapshot dated 2026-08-16. The official event page and rules 
 
 ## Current holds
 
-- Implementation code is intentionally absent from the initial repository.
+- The credential-free Ready/mismatch judge path is implemented; storage, application UI, Docker packaging, architecture assets, and the public video remain incomplete.
 - No deployment, live Bedrock/AgentCore proof, public video, or Devpost submission has been performed from this repository.

@@ -2,7 +2,10 @@ import { Agent, type Model } from "@strands-agents/sdk";
 
 import {
   MISMATCH_FIXTURE,
+  READY_FIXTURE,
   type EvidenceObservation,
+  type ReleaseFixture,
+  type ReleaseScenario,
   type ToolCallReceipt,
 } from "./evidence.js";
 import { evaluateReleaseMismatch, type PolicyDecision } from "./policy.js";
@@ -24,8 +27,10 @@ export type RunMismatchOptions =
       readonly modelMode: "bedrock-live";
     };
 
-export interface MismatchSliceResult {
-  readonly scenario: "deployed-sha-mismatch";
+export interface ReleaseSliceResult<
+  Scenario extends ReleaseScenario = ReleaseScenario,
+> {
+  readonly scenario: Scenario;
   readonly agentRuntime: "@strands-agents/sdk";
   readonly agentRuntimeVersion: typeof STRANDS_SDK_VERSION;
   readonly modelMode: MismatchModelMode;
@@ -36,16 +41,30 @@ export interface MismatchSliceResult {
   readonly externalMutations: 0;
 }
 
+export type MismatchSliceResult = ReleaseSliceResult<"deployed-sha-mismatch">;
+export type ReadySliceResult = ReleaseSliceResult<"ready">;
+
 export async function runMismatchSlice(
   options: RunMismatchOptions = {},
 ): Promise<MismatchSliceResult> {
+  return runReleaseSlice(MISMATCH_FIXTURE, options);
+}
+
+export async function runReadySlice(): Promise<ReadySliceResult> {
+  return runReleaseSlice(READY_FIXTURE, {});
+}
+
+export async function runReleaseSlice<Scenario extends ReleaseScenario>(
+  fixture: ReleaseFixture<Scenario>,
+  options: RunMismatchOptions = {},
+): Promise<ReleaseSliceResult<Scenario>> {
   const recorder = createEvidenceRecorder();
   const model = options.model ?? new ScriptedEvidenceModel();
   const modelMode = options.modelMode ?? "credential-free-scripted";
   const agent = new Agent({
     model,
     plugins: [new EvidenceToolBudget()],
-    tools: [...createEvidenceTools(MISMATCH_FIXTURE, recorder)],
+    tools: [...createEvidenceTools(fixture, recorder)],
     toolExecutor: "sequential",
     printer: false,
     systemPrompt:
@@ -53,15 +72,15 @@ export async function runMismatchSlice(
   });
 
   const agentResult = await agent.invoke(
-    `Evaluate release candidate ${MISMATCH_FIXTURE.expectedCommit}.`,
+    `Evaluate release candidate ${fixture.expectedCommit}.`,
   );
   const policy = evaluateReleaseMismatch(
-    MISMATCH_FIXTURE.expectedCommit,
+    fixture.expectedCommit,
     recorder.observations,
   );
 
   return Object.freeze({
-    scenario: "deployed-sha-mismatch",
+    scenario: fixture.scenario,
     agentRuntime: "@strands-agents/sdk",
     agentRuntimeVersion: STRANDS_SDK_VERSION,
     modelMode,

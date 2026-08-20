@@ -57,6 +57,13 @@ This plan is sequenced so that each stage can fail closed and be verified before
 - Keep the deterministic mismatch policy authoritative over model narration and keep all tools fixture-backed with zero external mutations.
 - Status: implementation and credential-free verification may pass independently; live AWS/Bedrock invocation remains HOLD until separately authorized and evidenced.
 
+### Stage 3C — Credential-free judge contrast
+
+- Add a matching Ready fixture beside the deployed-revision mismatch fixture and run both through the same bounded Strands agent path.
+- Provide one judge command that verifies scenario order, deterministic outcomes, exact tool calls, bounded human decisions, and zero external mutations.
+- Fail the command closed when any judge-facing invariant changes.
+- Status: implemented when Windows and Linux verification plus the draft pull request check pass; storage, UI, live AWS/Bedrock, and submission remain separate work.
+
 ## Stage 4 — Browser evidence and orchestration
 
 - Add one isolated Playwright browser assertion path.

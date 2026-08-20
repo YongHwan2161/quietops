@@ -35,6 +35,13 @@ This plan is sequenced so that each stage can fail closed and be verified before
 - Add SQLite migrations, append-only repositories, idempotency, redaction, and screen/export projections.
 - Gate: exhaustive policy and concurrency tests prove that invalid evidence cannot produce Ready and history cannot be rewritten through public interfaces.
 
+### Stage 2A — Append-only evaluation ledger foundation
+
+- Add strict SQLite tables for evaluations, ordered events, and idempotency receipts without exposing update or delete operations.
+- Reject update and delete statements at the database boundary and allow at most one human-decision event per evaluation.
+- Preserve candidate identity, parent evaluation lineage, event sequence, payload, and timestamp.
+- Status: the foundation is implemented and locally verified; the exhaustive policy matrix, concurrent writer behavior, redaction, retention, and export storage remain open.
+
 ## Stage 3 — Agent and evidence boundaries
 
 - Integrate the pinned Strands SDK behind an `AgentRuntime` interface.
@@ -69,6 +76,14 @@ This plan is sequenced so that each stage can fail closed and be verified before
 - Add one isolated Playwright browser assertion path.
 - Complete evaluation orchestration, bounded retries, terminal recovery, and finalization over persisted evidence IDs.
 - Gate: Ready and mismatch runs execute meaningful tool sequences; timeout, injection, fabricated evidence, interruption, and narration-conflict cases fail safely.
+
+### Stage 4A-1 — Persistent evaluation application spine
+
+- Run the credential-free Ready and mismatch fixtures through one application service and the existing Strands runner.
+- Reconstruct inbox, evaluation-detail, and timeline projections from persisted events rather than browser-owned state.
+- Rank an unresolved mismatch ahead of Ready, accept only the policy-authorized decisions, and make decision commands idempotent.
+- Create Re-check requested as a new child evaluation without rewriting its parent evidence or decision.
+- Status: implemented and locally verified; background execution, progress events, bounded retries, recovery, API/SSE, browser collection, and browser UI remain open.
 
 ## Stage 5 — API and user experience
 

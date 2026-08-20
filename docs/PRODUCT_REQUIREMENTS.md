@@ -50,3 +50,16 @@ QuietOps handles routine release-evidence work quietly. If it interrupts the use
 ## Acceptance boundary
 
 The P0 product is acceptable only when the Ready and mismatch journeys run end to end, duplicate actions are idempotent, stale or missing evidence fails closed, exports match screen projections, and the complete judge path performs zero external mutations.
+
+## Implemented application spine
+
+Stage 4A-1 now provides the browser-independent state path for the credential-free demo:
+
+- Ready and mismatch run through one application service and the existing bounded Strands agent path.
+- Completed evaluation, evidence, policy, tool-call, and human-decision events are appended to SQLite.
+- An unresolved mismatch is ranked ahead of Ready in the inbox projection.
+- Reject and Re-check requested are the only mismatch decisions; Ready accepts neither.
+- An idempotency-key replay returns the original decision receipt without creating another event.
+- Re-check creates a child evaluation and preserves the parent evidence and decision timeline.
+
+This increment does not satisfy the P0 product boundary by itself. Pending/checking progress, stale and missing evidence paths, API/SSE delivery, browser rendering, export consistency, and live-provider collection remain unimplemented.

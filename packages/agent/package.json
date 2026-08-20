@@ -19,6 +19,7 @@
   "scripts": {
     "build": "tsc --build",
     "clean": "tsc --build --clean && node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+    "demo:judge": "npm run build && node dist/src/judge-cli.js",
     "demo:mismatch": "npm run build && node dist/src/cli.js",
     "demo:mismatch:bedrock": "npm run build && node dist/src/bedrock-cli.js",
     "pretypecheck": "npm run build --workspace @quietops/contracts",

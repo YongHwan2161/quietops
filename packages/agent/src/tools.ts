@@ -5,7 +5,7 @@ import type {
   EvidenceKind,
   EvidenceObservation,
   EvidenceRecorder,
-  MismatchFixture,
+  ReleaseFixture,
 } from "./evidence.js";
 
 const EMPTY_INPUT = z.object({}).strict();
@@ -26,7 +26,7 @@ export function createEvidenceRecorder(): EvidenceRecorder {
 }
 
 export function createEvidenceTools(
-  fixture: MismatchFixture,
+  fixture: ReleaseFixture,
   recorder: EvidenceRecorder,
 ): readonly InvokableTool<Record<string, never>, JSONValue>[] {
   return Object.freeze([

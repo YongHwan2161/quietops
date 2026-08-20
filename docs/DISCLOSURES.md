@@ -2,7 +2,7 @@
 
 ## Repository phase
 
-This public repository contains planning documents, an MIT license, a TypeScript contract kernel, and one newly authored Strands agent slice for a deployed-revision mismatch. The slice defaults to a credential-free scripted model and includes an optional Bedrock model-selection path. Storage, application, deployment, and live-verification claims remain absent until the corresponding code and evidence are published.
+This public repository contains planning documents, an MIT license, a TypeScript contract kernel, and newly authored credential-free Ready/mismatch Strands agent slices. The mismatch slice also includes an optional Bedrock model-selection path. Storage, application, deployment, and live-verification claims remain absent until the corresponding code and evidence are published.
 
 ## AI assistance
 

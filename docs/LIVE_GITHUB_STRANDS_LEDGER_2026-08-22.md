@@ -1,5 +1,7 @@
 # Stage 4B-1 Live GitHub Strands/Ledger Verification
 
+Successor note: Stage 4B-2 later added a locally verified construction-bound deployment-marker collector contract. No real marker was selected or observed, so this Stage 4B-1 live result and its `Could not complete` outcome remain unchanged. See [Stage 4B-2 Deployment-Marker Collector Verification](DEPLOYMENT_MARKER_COLLECTOR_2026-08-22.md).
+
 This record covers one actual public GitHub → Strands tools → deterministic policy → append-only SQLite execution on 2026-08-22 KST. It proves that real source and CI evidence can cross the agent/application boundary with provider receipts intact. It does not prove deployment evidence, browser integration, background execution, live Bedrock, AgentCore, or a fully live release evaluation.
 
 ## Verified path

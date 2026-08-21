@@ -82,4 +82,11 @@ Stage 4B-1 closes the agent/application seam for source and CI only:
 - The file-backed integration test proves the source/CI receipts survive ledger reopen; the live command separately proves the public GitHub → Strands → SQLite path.
 - The browser remains fixture-backed, so this increment is not a fully live Ready or mismatch journey.
 
-This slice does not satisfy the full P0 boundary by itself. Pending/checking progress, stale evidence, resumable SSE, export consistency, authentication, deployment/browser evidence collection, background execution, and a fully live browser journey remain unimplemented.
+Stage 4B-2 establishes the deployment-observation boundary without claiming a deployment:
+
+- Trusted application code constructs a collector around one exact HTTPS marker URL; neither the model nor a tool invocation can redirect it to another target.
+- The marker must identify this repository and a full commit under a strict versioned JSON schema.
+- Missing, malformed, oversized, redirected, non-HTTPS, credential-bearing, queried, fragmented, or timed-out reads fail closed.
+- The collector is not yet a Strands tool and no real deployment URL has been selected, so it cannot change a live evaluation outcome.
+
+This slice does not satisfy the full P0 boundary by itself. Pending/checking progress, stale evidence, resumable SSE, export consistency, authentication, live deployment/browser evidence integration, background execution, and a fully live browser journey remain unimplemented.

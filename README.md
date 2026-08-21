@@ -2,7 +2,7 @@
 
 QuietOps is an incrementally built release-evidence steward for solo developers and small software teams. It collects read-only release evidence, evaluates that evidence against explicit policy, and asks a human only when a genuine decision remains.
 
-> Early implementation: the repository provides a TypeScript contract kernel, credential-free Ready/mismatch Strands agent slices, an append-only SQLite application spine, a local HTTP/browser product slice, and a bounded public-GitHub source/CI evidence path. The live GitHub path now runs through two Strands tools and preserves provider receipts in the ledger, but it deliberately returns `Could not complete` because deployment evidence is absent. It is not yet part of the browser workflow, and no live AWS/Bedrock verification evidence exists.
+> Early implementation: the repository provides a TypeScript contract kernel, credential-free Ready/mismatch Strands agent slices, an append-only SQLite application spine, a local HTTP/browser product slice, and bounded source/CI/deployment evidence adapters. The live GitHub path runs through two Strands tools and preserves provider receipts in the ledger, but it deliberately returns `Could not complete` because no real deployment marker has been selected or observed. The deployment-marker collector is locally verified only, the browser remains fixture-backed, and no live AWS/Bedrock verification evidence exists.
 
 ## Why QuietOps
 
@@ -28,16 +28,18 @@ Small teams repeatedly reconstruct release readiness from commits, CI checks, de
 - [Stage 4A-2 browser product verification](docs/BROWSER_PRODUCT_SLICE_2026-08-21.md)
 - [Stage 4B-0 live GitHub evidence verification](docs/LIVE_GITHUB_EVIDENCE_2026-08-22.md)
 - [Stage 4B-1 live GitHub Strands/ledger verification](docs/LIVE_GITHUB_STRANDS_LEDGER_2026-08-22.md)
+- [Stage 4B-2 deployment-marker collector verification](docs/DEPLOYMENT_MARKER_COLLECTOR_2026-08-22.md)
 - [Problem-selection and competition-fit rationale](docs/PROBLEM_SELECTION_RATIONALE_2026-08-22.md)
 - [Submission plan](docs/SUBMISSION_PLAN.md)
 - [Disclosures and claim boundaries](docs/DISCLOSURES.md)
 
 ## Current status
 
-- Active increment: Stage 4B-1 — live public-GitHub source/CI evidence through bounded Strands tools and the append-only ledger; the broader Stage 1, Stage 2, Stage 4, and Stage 5 plans remain incomplete
-- Implementation: candidate identity, shared vocabulary, bounded Ready/mismatch Strands paths, an optional Bedrock model path for mismatch, a separate live GitHub Strands path, an append-only SQLite ledger, idempotent human decisions, re-check lineage, and inbox/detail/timeline projections
+- Active increment: Stage 4B-2 — construction-bound, read-only deployment-marker collector contract; the broader Stage 1, Stage 2, Stage 4, and Stage 5 plans remain incomplete
+- Implementation: candidate identity, shared vocabulary, bounded Ready/mismatch Strands paths, an optional Bedrock model path for mismatch, a separate live GitHub Strands path, an append-only SQLite ledger, idempotent human decisions, re-check lineage, inbox/detail/timeline projections, and a locally verified deployment-marker collector
 - Browser and API: a loopback-only Fastify server exposes three validated endpoints to a repository-authored master-detail browser. The UI reads only server projections, surfaces mismatch before Ready, records Reject/Re-check through the API, and shows persisted parent/child lineage.
 - Live GitHub validation: two bounded Strands tools share one public source/CI collection, preserve exact provider receipts in SQLite, and return `Could not complete` with no human action because deployment evidence is missing; the browser still uses fixture scenarios
+- Deployment-marker validation: a collector created with one trusted HTTPS `/.well-known/quietops-release.json` URL performs one bounded unauthenticated GET and accepts only an exact repository/full-commit schema; no real URL has been selected or called
 - Live AWS/Bedrock validation: not performed for this repository
 - Deployment: not performed
 - Devpost project submission: not performed from this repository

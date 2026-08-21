@@ -44,5 +44,5 @@ This is a planning snapshot dated 2026-08-16. The official event page and rules 
 
 ## Current holds
 
-- The credential-free Ready/mismatch judge path, append-only evaluation/application spine, loopback-only HTTP/browser decision workflow, and a live public-GitHub source/CI Strands/ledger path are implemented. The live path correctly remains incomplete without deployment evidence and is not yet wired into the browser. SSE, background orchestration, deployment/browser collectors, export, authentication, Docker packaging, architecture assets, and public video remain incomplete.
+- The credential-free Ready/mismatch judge path, append-only evaluation/application spine, loopback-only HTTP/browser decision workflow, live public-GitHub source/CI Strands/ledger path, and a locally verified deployment-marker collector are implemented. No real marker target has been selected, and the collector is not yet wired into the agent, ledger, or browser; the live path therefore correctly remains incomplete. SSE, background orchestration, live deployment/browser integration, export, authentication, Docker packaging, architecture assets, and public video remain incomplete.
 - No deployment, live Bedrock/AgentCore proof, public video, or Devpost submission has been performed from this repository.

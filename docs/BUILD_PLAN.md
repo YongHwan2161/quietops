@@ -112,6 +112,15 @@ This plan is sequenced so that each stage can fail closed and be verified before
 - Gate: focused agent and file-reopen ledger tests, full repository verification, and an actual public GitHub → Strands → policy → SQLite command pass.
 - Status: implemented and directly verified on 2026-08-22 KST; deployment collection, browser integration, background execution, live Bedrock/AgentCore, and a fully live Ready/mismatch contrast remain open.
 
+### Stage 4B-2 — Construction-bound deployment marker collector
+
+- Create the read-only collector with one trusted deployment target; agent/model input cannot select or replace its URL at invocation time.
+- Accept only HTTPS on the default port at `/.well-known/quietops-release.json`, without credentials, query, or fragment, and bind the marker to `YongHwan2161/quietops` plus one full lowercase commit.
+- Perform one unauthenticated `GET`, reject redirects, enforce a whole-response timeout and 64-kilobyte body limit, and map missing, invalid, oversized, or interrupted evidence to stable fail-closed errors.
+- Preserve the exact marker URL, fetch time, evidence ID, full deployed commit, and `externalMutations: 0` in the returned observation.
+- Gate: success, unsafe-target, malformed-schema, content-type, missing, oversized, and timeout tests plus full repository verification pass.
+- Status: implemented and locally verified on 2026-08-22 KST; no real deployment target has been selected or called, and Strands/application/ledger/browser integration remains open.
+
 ## Stage 5 — API and user experience
 
 - Add validated API routes, resumable SSE, idempotent decisions, and consistent projections.

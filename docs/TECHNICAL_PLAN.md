@@ -71,7 +71,13 @@ The adapter emits source and CI observations with stable evidence IDs, source UR
 
 Stage 4B-1 registers the source and CI adapter behind exactly two Strands tools. Both tools share one lazy collection promise, so one commit request and one workflow-runs request produce a bound source/CI snapshot rather than two independently drifting reads. A scenario-specific two-call `EvidenceToolBudget` rejects duplicate or foreign tool use.
 
-The application persists both observations and their GitHub provider receipts through the existing append-only SQLite event path. Because no deployment collector exists, deterministic policy records `Could not complete`, no human decision is offered, and the placeholder deployment URL uses the reserved `.example.invalid` domain. The live scenario is separate from browser demo seeding and cannot silently replace the credential-free judge contrast.
+The application persists both observations and their GitHub provider receipts through the existing append-only SQLite event path. At the Stage 4B-1 checkpoint no deployment collector existed, so deterministic policy recorded `Could not complete`, no human decision was offered, and the placeholder deployment URL used the reserved `.example.invalid` domain. The live scenario remains separate from browser demo seeding and cannot silently replace the credential-free judge contrast.
+
+## Implemented Stage 4B-2 deployment marker boundary
+
+The deployment collector is a factory whose trusted construction input binds one exact HTTPS URL ending in `/.well-known/quietops-release.json`. The returned zero-argument collector gives the agent no target-selection surface. It rejects credentials, non-default ports, query strings, fragments, alternate paths, redirects, non-JSON content, unknown marker fields, repository drift, abbreviated commits, oversized bodies, missing resources, and timeouts.
+
+The accepted marker schema is exactly `{ schemaVersion: "1", repository: "YongHwan2161/quietops", commit: <40 lowercase hex> }`. A successful read returns a `Verified` deployed-revision observation with its full commit, exact marker URL, fetch time, stable evidence ID, and zero external mutations. This is local contract proof only: a real target, Strands tool registration, application/ledger persistence, and browser projection remain successor work.
 
 ## Planned modules
 
@@ -79,7 +85,7 @@ The application persists both observations and their GitHub provider receipts th
 - `domain`: lifecycle, outcome vocabulary, attention ranking, and policy matrix.
 - `storage`: migrations, append-only repositories, idempotency, redaction, and projections.
 - `agent`: Strands runtime interface, bounded prompt, registered tools, and safe telemetry.
-- `adapters`: the bounded public-GitHub source/CI collector is implemented; fixture, deployment, HTTP-marker, and Playwright collectors plus Strands/application integration remain planned.
+- `adapters`: bounded public-GitHub source/CI and construction-bound deployment-marker collectors are implemented; a real marker target, Playwright collector, and deployment-marker Strands/application integration remain planned.
 - `application`: evaluation orchestration, retries, finalization, recovery, and decisions.
 - `server`: validated API, resumable SSE, health, readiness, and export.
 - `web`: the current static master-detail inbox and decision card; evaluation progress, Ready packet, richer history, and export remain planned.

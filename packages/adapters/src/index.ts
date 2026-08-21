@@ -10,3 +10,14 @@ export {
   type GitHubEvidenceObservation,
   type GitHubEvidenceTarget,
 } from "./github-evidence.js";
+
+export {
+  DEPLOYMENT_EVIDENCE_ERROR_CODES,
+  DeploymentEvidenceError,
+  createDeploymentRevisionCollector,
+  type CreateDeploymentRevisionCollectorOptions,
+  type DeploymentEvidenceBundle,
+  type DeploymentEvidenceErrorCode,
+  type DeploymentEvidenceTarget,
+  type DeploymentRevisionObservation,
+} from "./deployment-marker.js";

@@ -29,6 +29,7 @@ Small teams repeatedly reconstruct release readiness from commits, CI checks, de
 - [Stage 4B-0 live GitHub evidence verification](docs/LIVE_GITHUB_EVIDENCE_2026-08-22.md)
 - [Stage 4B-1 live GitHub Strands/ledger verification](docs/LIVE_GITHUB_STRANDS_LEDGER_2026-08-22.md)
 - [Stage 4B-2 deployment-marker collector verification](docs/DEPLOYMENT_MARKER_COLLECTOR_2026-08-22.md)
+- [Hosting-target decision and external gate](docs/HOSTING_TARGET_DECISION_2026-08-22.md)
 - [Problem-selection and competition-fit rationale](docs/PROBLEM_SELECTION_RATIONALE_2026-08-22.md)
 - [Submission plan](docs/SUBMISSION_PLAN.md)
 - [Disclosures and claim boundaries](docs/DISCLOSURES.md)
@@ -40,6 +41,7 @@ Small teams repeatedly reconstruct release readiness from commits, CI checks, de
 - Browser and API: a loopback-only Fastify server exposes three validated endpoints to a repository-authored master-detail browser. The UI reads only server projections, surfaces mismatch before Ready, records Reject/Re-check through the API, and shows persisted parent/child lineage.
 - Live GitHub validation: two bounded Strands tools share one public source/CI collection, preserve exact provider receipts in SQLite, and return `Could not complete` with no human action because deployment evidence is missing; the browser still uses fixture scenarios
 - Deployment-marker validation: a collector created with one trusted HTTPS `/.well-known/quietops-release.json` URL performs one bounded unauthenticated GET and accepts only an exact repository/full-commit schema; no real URL has been selected or called
+- Hosting target: Railway is selected as `PREPARE_ONLY`; the current loopback server is not safe or ready for public deployment, and no Railway resource has been created
 - Live AWS/Bedrock validation: not performed for this repository
 - Deployment: not performed
 - Devpost project submission: not performed from this repository

@@ -1,0 +1,66 @@
+# QuietOps Hosting Target Decision — 2026-08-22
+
+## Decision
+
+`SELECT_RAILWAY_PREPARE_ONLY` — prepare QuietOps for one Railway-hosted public demo, but do not create a project, service, volume, domain, environment variable, or deployment until the public-write boundary and billing impact are explicitly approved.
+
+This is a target-selection record, not deployment evidence.
+
+## Why Railway is the minimum path
+
+- QuietOps is an npm shared monorepo. Railway documents root-level builds and service-specific start commands for shared JavaScript monorepos.
+- QuietOps currently stores its append-only ledger in SQLite. Railway volumes provide a mounted persistent directory, including support for application-relative paths under `/app`.
+- The Railway CLI is already installed and authenticated on this workstation. A read-only check found one unrelated project, no QuietOps project, and no project linked to this checkout.
+- Railway can supply a public service domain after creation. That exact generated HTTPS origin can then become the deployment collector's construction-bound allowlist.
+- Railway's current public pricing page lists a limited trial/free path and a Hobby plan with a $5 minimum usage commitment. The current account plan and remaining credits were not inspected, so the real charge remains unknown until the billing screen is reviewed.
+
+Official references: [Railway shared monorepos](https://docs.railway.com/deployments/monorepo), [Railway volumes](https://docs.railway.com/volumes), and [Railway pricing](https://railway.com/pricing).
+
+## Rejected as the minimum path
+
+### AWS App Runner
+
+AWS has closed App Runner to new customers. Existing customers may continue, but current account eligibility was not checked. App Runner also documents its container filesystem as ephemeral and says applications should not assume file persistence across requests, which conflicts with QuietOps' current SQLite ledger without a storage redesign.
+
+Official references: [App Runner availability change](https://docs.aws.amazon.com/apprunner/latest/dg/apprunner-availability-change.html) and [App Runner runtime storage](https://docs.aws.amazon.com/apprunner/latest/dg/develop.html).
+
+### AWS Lightsail Container Service
+
+Lightsail provides a managed HTTPS public container endpoint and is viable after containerization, but it adds image packaging and AWS resource lifecycle work. AWS currently lists the smallest container service at $0.0094/hour, up to $7/month, with charges continuing while the service is running or disabled until deletion. It is a reasonable fallback when AWS-native hosting matters more than the shortest demo path.
+
+Official references: [Lightsail container services](https://docs.aws.amazon.com/lightsail/latest/userguide/amazon-lightsail-container-services.html) and [Lightsail container FAQ](https://docs.aws.amazon.com/lightsail/latest/userguide/amazon-lightsail-faq-containers.html).
+
+## Deployment blockers discovered
+
+The current server must not be published as-is:
+
+1. It listens only on `127.0.0.1` and reads `QUIETOPS_PORT` rather than the platform-standard `PORT` variable.
+2. It has no health endpoint and no `/.well-known/quietops-release.json` endpoint.
+3. Its decision endpoint is intentionally unauthenticated because the verified product slice is loopback-only. Publishing it would allow any internet user to resolve or re-check the shared demo evaluation.
+4. The default SQLite path is repository-local. A Railway deployment needs a volume mounted at a fixed path such as `/data` and `QUIETOPS_DB_PATH=/data/quietops.sqlite`.
+5. There is no deployment start command or Railway configuration in the repository.
+
+The public-write boundary is the decisive blocker. Adding hosting configuration without first making the demo safe would create a technically live but unreliable judging experience.
+
+## Next local increment
+
+Stage 4C-1 should make the server hosting-ready without deploying it:
+
+- parse an explicit host and the platform `PORT` safely;
+- expose a credential-free health check;
+- expose a no-store release marker bound to a build-time full commit;
+- choose and test a public-demo decision policy so an anonymous visitor cannot corrupt the shared judge state;
+- add a deterministic production start command and Railway configuration;
+- run the complete local/browser verification with zero external mutations.
+
+Only after Stage 4C-1 passes should the user review the Railway plan/credit screen and authorize creating billable/public resources.
+
+## External mutation gate
+
+Not performed:
+
+- Railway project or service creation;
+- repository connection or source authorization;
+- volume, environment variable, or public domain creation;
+- build, deployment, restart, or generated marker observation;
+- billing-plan change or usage commitment.

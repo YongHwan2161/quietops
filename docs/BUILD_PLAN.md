@@ -121,6 +121,15 @@ This plan is sequenced so that each stage can fail closed and be verified before
 - Gate: success, unsafe-target, malformed-schema, content-type, missing, oversized, and timeout tests plus full repository verification pass.
 - Status: implemented and locally verified on 2026-08-22 KST; no real deployment target has been selected or called, and Strands/application/ledger/browser integration remains open.
 
+### Stage 4C-0 — Hosting target selection and external gate
+
+- Compare current platform constraints against the actual monorepo, Node, SQLite, networking, persistence, and public-write requirements.
+- Select Railway as `PREPARE_ONLY`: it is the shortest current path for a shared npm monorepo plus persistent SQLite volume, while AWS App Runner is closed to new customers and stateless, and Lightsail Container Service adds container/cost lifecycle work.
+- Record the current local CLI state and the exact public/billable mutations that remain unauthorized.
+- Refuse public deployment of the current loopback-only server because its unauthenticated decision route would let arbitrary visitors change shared judge state.
+- Gate: official platform documentation, local runtime inspection, authenticated read-only CLI status, and an explicit no-resource/no-deployment boundary are recorded.
+- Status: decision complete on 2026-08-22 KST; Railway project/service/volume/domain creation, repository connection, billing change, and deployment remain HOLD. Stage 4C-1 hosting-readiness code is next.
+
 ## Stage 5 — API and user experience
 
 - Add validated API routes, resumable SSE, idempotent decisions, and consistent projections.

@@ -24,7 +24,7 @@ This is a planning snapshot dated 2026-08-16. The official event page and rules 
 1. State the small-team release problem and the human attention cost.
 2. Run the Ready scenario and show bounded tool work resolving without a decision request.
 3. Run the mismatch scenario and show QuietOps refusing readiness.
-4. Show the expected-versus-observed decision card and one human action.
+4. Show the expected-versus-observed decision card; perform one human action in the labeled local-interactive workflow, then show that the shared public view cannot mutate the record.
 5. Show preserved history and a portable audit packet.
 6. Close with the nonclaim: QuietOps recommends release readiness from collected evidence; it does not deploy or guarantee security.
 
@@ -44,5 +44,5 @@ This is a planning snapshot dated 2026-08-16. The official event page and rules 
 
 ## Current holds
 
-- The credential-free Ready/mismatch judge path, append-only evaluation/application spine, loopback-only HTTP/browser decision workflow, live public-GitHub source/CI Strands/ledger path, and a locally verified deployment-marker collector are implemented. No real marker target has been selected, and the collector is not yet wired into the agent, ledger, or browser; the live path therefore correctly remains incomplete. SSE, background orchestration, live deployment/browser integration, export, authentication, Docker packaging, architecture assets, and public video remain incomplete.
+- The credential-free Ready/mismatch judge path, append-only evaluation/application spine, loopback HTTP/browser decision workflow, local public-demo read-only boundary, live public-GitHub source/CI Strands/ledger path, and a locally verified deployment-marker collector are implemented. No real marker target has been selected, and the collector is not yet wired into the agent, ledger, or browser; the live path therefore correctly remains incomplete. Host/`PORT`, health, release-marker serving, persistent-volume configuration, SSE, background orchestration, live deployment/browser integration, export, authentication, Docker packaging, architecture assets, and public video remain incomplete.
 - No deployment, live Bedrock/AgentCore proof, public video, or Devpost submission has been performed from this repository.

@@ -130,6 +130,14 @@ This plan is sequenced so that each stage can fail closed and be verified before
 - Gate: official platform documentation, local runtime inspection, authenticated read-only CLI status, and an explicit no-resource/no-deployment boundary are recorded.
 - Status: decision complete on 2026-08-22 KST; Railway project/service/volume/domain creation, repository connection, billing change, and deployment remain HOLD. Stage 4C-1 hosting-readiness code is next.
 
+### Stage 4C-1a — Public-demo decision boundary
+
+- Add an explicit `local-interactive` / `public-read-only` server capability; default unknown or absent browser capability data to the read-only state.
+- Preserve inbox and evidence visibility in public mode while removing decision inputs and rejecting otherwise valid decision writes with a stable `403 PUBLIC_DEMO_READ_ONLY` response.
+- Keep the existing local judge workflow interactive and prove that a public request cannot append a decision or timeline event.
+- Gate: focused HTTP tests, TypeScript and browser syntax checks, an actual headed-browser refresh with no decision controls, zero browser console errors or warnings, full repository verification, and zero external mutations pass.
+- Status: implemented and locally verified on 2026-08-22 KST; host/`PORT`, health, release marker, persistent-volume path, production start configuration, and deployment remain open.
+
 ## Stage 5 — API and user experience
 
 - Add validated API routes, resumable SSE, idempotent decisions, and consistent projections.

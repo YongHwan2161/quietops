@@ -58,11 +58,15 @@ export interface CreateQuietOpsServerOptions {
   readonly seedDemo?: boolean;
   readonly evaluationServiceOptions?: EvaluationServiceOptions;
   readonly logger?: boolean;
+  readonly decisionMode?: DecisionMode;
 }
+
+export type DecisionMode = "local-interactive" | "public-read-only";
 
 export async function createQuietOpsServer(
   options: CreateQuietOpsServerOptions = {},
 ): Promise<FastifyInstance> {
+  const decisionMode = normalizeDecisionMode(options.decisionMode);
   const ledger = new SQLiteEvaluationLedger(options.databasePath);
   const service = new EvaluationService(
     ledger,
@@ -129,7 +133,10 @@ export async function createQuietOpsServer(
     );
   });
 
-  app.get("/api/inbox", async () => ({ items: service.listInbox() }));
+  app.get("/api/inbox", async () => ({
+    capabilities: Object.freeze({ decisionMode }),
+    items: service.listInbox(),
+  }));
 
   app.get<{ Params: EvaluationParams }>(
     "/api/evaluations/:evaluationId",
@@ -156,7 +163,16 @@ export async function createQuietOpsServer(
         body: decisionBodySchema,
       },
     },
-    async (request) => {
+    async (request, reply) => {
+      if (decisionMode === "public-read-only") {
+        sendError(
+          reply,
+          403,
+          "PUBLIC_DEMO_READ_ONLY",
+          "This public demo preserves shared evidence and does not accept decisions.",
+        );
+        return;
+      }
       const receipt = await service.recordDecision({
         evaluationId: request.params.evaluationId,
         decision: request.body.decision,
@@ -199,6 +215,14 @@ export async function createQuietOpsServer(
   }
 
   return app;
+}
+
+function normalizeDecisionMode(value: DecisionMode | undefined): DecisionMode {
+  if (value === undefined || value === "local-interactive") {
+    return "local-interactive";
+  }
+  if (value === "public-read-only") return value;
+  throw new Error(`Unknown QuietOps decision mode: ${String(value)}.`);
 }
 
 const evaluationParamsSchema = Object.freeze({

@@ -521,6 +521,16 @@ h1 {
   gap: 9px;
 }
 
+.demo-boundary {
+  padding: 12px;
+  border: 1px solid rgba(137, 191, 255, 0.2);
+  border-radius: 11px;
+  color: #b7c9dc;
+  background: rgba(137, 191, 255, 0.06);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .action-button {
   padding: 10px 14px;
   border: 1px solid rgba(143, 255, 193, 0.25);

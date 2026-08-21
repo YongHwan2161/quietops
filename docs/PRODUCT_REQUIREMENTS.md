@@ -89,4 +89,11 @@ Stage 4B-2 establishes the deployment-observation boundary without claiming a de
 - Missing, malformed, oversized, redirected, non-HTTPS, credential-bearing, queried, fragmented, or timed-out reads fail closed.
 - The collector is not yet a Strands tool and no real deployment URL has been selected, so it cannot change a live evaluation outcome.
 
+Stage 4C-1a establishes the public-demo write boundary without claiming a hosted demo:
+
+- `local-interactive` preserves the existing credential-free judge workflow and bounded Reject/Re-check decisions.
+- `public-read-only` preserves inbox, evidence, lineage, and tool receipts but exposes no decision inputs.
+- The server rejects an otherwise valid public decision request with `403 PUBLIC_DEMO_READ_ONLY`; the evaluation, timeline, and inbox identity remain unchanged.
+- Missing or unrecognized browser capability data fails closed to the public read-only presentation.
+
 This slice does not satisfy the full P0 boundary by itself. Pending/checking progress, stale evidence, resumable SSE, export consistency, authentication, live deployment/browser evidence integration, background execution, and a fully live browser journey remain unimplemented.

@@ -36,11 +36,11 @@ The current server must not be published as-is:
 
 1. It listens only on `127.0.0.1` and reads `QUIETOPS_PORT` rather than the platform-standard `PORT` variable.
 2. It has no health endpoint and no `/.well-known/quietops-release.json` endpoint.
-3. Its decision endpoint is intentionally unauthenticated because the verified product slice is loopback-only. Publishing it would allow any internet user to resolve or re-check the shared demo evaluation.
+3. Closed locally by Stage 4C-1a: explicit `public-read-only` mode keeps evidence visible, removes decision controls, and rejects otherwise valid decision writes without changing the ledger. Authentication for a future shared interactive workflow remains out of scope.
 4. The default SQLite path is repository-local. A Railway deployment needs a volume mounted at a fixed path such as `/data` and `QUIETOPS_DB_PATH=/data/quietops.sqlite`.
 5. There is no deployment start command or Railway configuration in the repository.
 
-The public-write boundary is the decisive blocker. Adding hosting configuration without first making the demo safe would create a technically live but unreliable judging experience.
+The public-write boundary was the decisive first blocker and is now closed locally. The remaining items still prevent deployment readiness.
 
 ## Next local increment
 
@@ -49,7 +49,7 @@ Stage 4C-1 should make the server hosting-ready without deploying it:
 - parse an explicit host and the platform `PORT` safely;
 - expose a credential-free health check;
 - expose a no-store release marker bound to a build-time full commit;
-- choose and test a public-demo decision policy so an anonymous visitor cannot corrupt the shared judge state;
+- use the verified `public-read-only` decision policy so an anonymous visitor cannot corrupt the shared judge state (`COMPLETE_LOCAL`, Stage 4C-1a);
 - add a deterministic production start command and Railway configuration;
 - run the complete local/browser verification with zero external mutations.
 

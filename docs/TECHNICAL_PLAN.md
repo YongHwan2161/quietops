@@ -48,6 +48,13 @@ Repository-authored browser
 - `@quietops/server` binds the demo to `127.0.0.1`, applies strict request schemas and browser security headers, maps known domain conflicts without exposing internal errors, and closes its ledger with the server lifecycle.
 - An empty database is seeded once through one atomic `EvaluationService.startDemoEvaluations` batch; a non-empty database is never reset or reseeded at startup.
 - The browser uses same-origin JSON only and renders dynamic evidence through DOM text nodes. It does not import fixtures, derive policy, access SQLite, or retain the authoritative decision only in client state.
+
+### Stage 4C-1a public-demo mode
+
+The server is constructed with one explicit decision mode. `local-interactive` is the CLI default for the existing loopback judge workflow. `public-read-only` adds its capability to the inbox projection, returns `403 PUBLIC_DEMO_READ_ONLY` before invoking the application decision service, and leaves all read projections available.
+
+The browser initializes fail-closed to the public state and unlocks decision inputs only when the server explicitly reports `local-interactive`. Public mode renders the unresolved human-decision reason as a product boundary rather than a disabled form. This is anonymous evidence viewing, not authentication or a shared interactive workflow.
+
 - Re-check returns the persisted receipt plus its child projection. Inbox reload and process restart reconstruct the same parent/child history from SQLite.
 - Static HTML/CSS/JavaScript keeps this slice build-light. Fastify is the only new direct locked runtime dependency; Playwright CLI is an external local verification tool rather than an application dependency.
 
@@ -103,7 +110,7 @@ Failed, Unknown, Stale, missing, foreign, fabricated, or duplicate evidence must
 
 The broader planned API will provide evaluation creation, event replay, audit export, health, readiness, and resumable event delivery. Mutation requests will require idempotency keys, and any later SSE reconnection will resume from the last persisted event.
 
-Stage 4A-2 implements the first three HTTP routes: inbox, evaluation detail, and decisions. It verifies HTTP validation, status/error mapping, duplicate-action replay, browser consumption, and restart persistence. Authentication, creation routes, SSE replay, export, health/readiness, and any destructive demo reset remain future work.
+Stage 4A-2 implements the first three HTTP routes: inbox, evaluation detail, and decisions. Stage 4C-1a adds the explicit local-interactive/public-read-only capability without adding a route. The slices verify HTTP validation, status/error mapping, duplicate-action replay, public write rejection, browser consumption, and restart persistence. Authentication, creation routes, SSE replay, export, health/readiness, and any destructive demo reset remain future work.
 
 ## Deployment boundary
 

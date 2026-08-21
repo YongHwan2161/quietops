@@ -30,18 +30,19 @@ Small teams repeatedly reconstruct release readiness from commits, CI checks, de
 - [Stage 4B-1 live GitHub Strands/ledger verification](docs/LIVE_GITHUB_STRANDS_LEDGER_2026-08-22.md)
 - [Stage 4B-2 deployment-marker collector verification](docs/DEPLOYMENT_MARKER_COLLECTOR_2026-08-22.md)
 - [Hosting-target decision and external gate](docs/HOSTING_TARGET_DECISION_2026-08-22.md)
+- [Stage 4C-1a public-demo decision boundary](docs/PUBLIC_DEMO_DECISION_BOUNDARY_2026-08-22.md)
 - [Problem-selection and competition-fit rationale](docs/PROBLEM_SELECTION_RATIONALE_2026-08-22.md)
 - [Submission plan](docs/SUBMISSION_PLAN.md)
 - [Disclosures and claim boundaries](docs/DISCLOSURES.md)
 
 ## Current status
 
-- Active increment: Stage 4B-2 — construction-bound, read-only deployment-marker collector contract; the broader Stage 1, Stage 2, Stage 4, and Stage 5 plans remain incomplete
+- Active increment: Stage 4C-1a — public demos are fail-closed and read-only while the local judge workflow remains interactive; the broader Stage 1, Stage 2, Stage 4, and Stage 5 plans remain incomplete
 - Implementation: candidate identity, shared vocabulary, bounded Ready/mismatch Strands paths, an optional Bedrock model path for mismatch, a separate live GitHub Strands path, an append-only SQLite ledger, idempotent human decisions, re-check lineage, inbox/detail/timeline projections, and a locally verified deployment-marker collector
-- Browser and API: a loopback-only Fastify server exposes three validated endpoints to a repository-authored master-detail browser. The UI reads only server projections, surfaces mismatch before Ready, records Reject/Re-check through the API, and shows persisted parent/child lineage.
+- Browser and API: a loopback-only Fastify server exposes three validated endpoints to a repository-authored master-detail browser. `local-interactive` mode preserves Reject/Re-check and lineage, while explicit `public-read-only` mode still shows evidence but removes decision controls and rejects valid decision writes with a stable `403` response.
 - Live GitHub validation: two bounded Strands tools share one public source/CI collection, preserve exact provider receipts in SQLite, and return `Could not complete` with no human action because deployment evidence is missing; the browser still uses fixture scenarios
 - Deployment-marker validation: a collector created with one trusted HTTPS `/.well-known/quietops-release.json` URL performs one bounded unauthenticated GET and accepts only an exact repository/full-commit schema; no real URL has been selected or called
-- Hosting target: Railway is selected as `PREPARE_ONLY`; the current loopback server is not safe or ready for public deployment, and no Railway resource has been created
+- Hosting target: Railway is selected as `PREPARE_ONLY`; the public-write blocker is closed locally, but host/`PORT`, health, release-marker, persistent-volume, and production-start work remain, and no Railway resource has been created
 - Live AWS/Bedrock validation: not performed for this repository
 - Deployment: not performed
 - Devpost project submission: not performed from this repository
@@ -63,6 +64,8 @@ npm run demo:web
 ```
 
 `npm run demo:web` binds only to `http://127.0.0.1:4173` and stores its credential-free demo ledger at `.quietops/quietops.sqlite`. A new empty ledger is seeded once through the actual Ready/mismatch Strands path; restarting the server reuses the stored projections and decisions. The browser does not import fixture JSON or write SQLite directly.
+
+Set `QUIETOPS_DECISION_MODE=public-read-only` to exercise the fail-closed shared-demo view locally. The inbox and evidence remain visible, but the browser exposes no Reject/Re-check controls and the API returns `PUBLIC_DEMO_READ_ONLY` for otherwise valid decision writes. Omitting the setting keeps the existing `local-interactive` judge workflow.
 
 The judge demo runs Ready and deployed-revision mismatch scenarios through the actual Strands `Agent` loop. Each scenario calls the same three fixture-backed read-only tools exactly once. It verifies that Ready requires no human decision, while a mismatch exposes only `Reject` and `Re-check requested`; both record `externalMutations: 0`. The command exits non-zero if these invariants fail. Fixture execution is not live provider validation.
 

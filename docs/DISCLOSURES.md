@@ -2,7 +2,7 @@
 
 ## Repository phase
 
-This public repository contains planning documents, an MIT license, a TypeScript contract kernel, newly authored credential-free Ready/mismatch Strands agent slices, an append-only SQLite application spine, a local Fastify/browser decision workflow, a bounded public-GitHub source/CI evidence path, and a locally verified deployment-marker collector. The GitHub collection runs through two Strands tools and preserves provider receipts in SQLite, but no real deployment target has been selected or observed. The deployment collector is not yet registered in the agent/application/browser path, so the correct live outcome remains `Could not complete`, not `Ready`. Hosted deployment and live AWS/Bedrock claims remain absent.
+This public repository contains planning documents, an MIT license, a TypeScript contract kernel, newly authored credential-free Ready/mismatch Strands agent slices, an append-only SQLite application spine, a local Fastify/browser decision workflow, a locally verified public-demo read-only mode, a bounded public-GitHub source/CI evidence path, and a locally verified deployment-marker collector. The GitHub collection runs through two Strands tools and preserves provider receipts in SQLite, but no real deployment target has been selected or observed. The deployment collector is not yet registered in the agent/application/browser path, so the correct live outcome remains `Could not complete`, not `Ready`. Public-demo mode has been exercised only on localhost; hosted deployment and live AWS/Bedrock claims remain absent.
 
 ## AI assistance
 

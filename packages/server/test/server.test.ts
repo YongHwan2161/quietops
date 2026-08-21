@@ -23,12 +23,14 @@ test("serves one persisted Ready and mismatch workflow over HTTP", async () => {
     );
 
     const inbox = inboxResponse.json<{
+      capabilities: { decisionMode: string };
       items: Array<{
         evaluationId: string;
         outcome: string;
         attentionRequired: boolean;
       }>;
     }>();
+    assert.equal(inbox.capabilities.decisionMode, "local-interactive");
     assert.equal(inbox.items.length, 2);
     assert.equal(inbox.items[0]?.outcome, "Needs decision");
     assert.equal(inbox.items[0]?.attentionRequired, true);
@@ -209,6 +211,71 @@ test("fails invalid and unauthorized decision requests closed", async () => {
     });
     assert.equal(missingEvaluation.statusCode, 404);
     assert.equal(missingEvaluation.json().error.code, "EVALUATION_NOT_FOUND");
+  } finally {
+    await app.close();
+  }
+});
+
+test("keeps public demo evidence readable while rejecting shared-state decisions", async () => {
+  const app = await createQuietOpsServer({
+    decisionMode: "public-read-only",
+    seedDemo: true,
+  });
+
+  try {
+    const inboxResponse = await app.inject({
+      method: "GET",
+      url: "/api/inbox",
+    });
+    assert.equal(inboxResponse.statusCode, 200);
+    const inbox = inboxResponse.json<{
+      capabilities: { decisionMode: string };
+      items: Array<{
+        evaluationId: string;
+        outcome: string;
+      }>;
+    }>();
+    assert.equal(inbox.capabilities.decisionMode, "public-read-only");
+    assert.equal(inbox.items.length, 2);
+
+    const mismatchId = inbox.items.find(
+      (item) => item.outcome === "Needs decision",
+    )!.evaluationId;
+    const before = (
+      await app.inject({
+        method: "GET",
+        url: `/api/evaluations/${mismatchId}`,
+      })
+    ).json<{
+      evaluation: { decision: unknown; timeline: unknown[] };
+    }>().evaluation;
+
+    const blocked = await app.inject({
+      method: "POST",
+      url: `/api/evaluations/${mismatchId}/decisions`,
+      headers: { "idempotency-key": "public-demo-blocked-1" },
+      payload: { decision: "Reject", actor: "anonymous-visitor" },
+    });
+    assert.equal(blocked.statusCode, 403);
+    assert.equal(blocked.json().error.code, "PUBLIC_DEMO_READ_ONLY");
+
+    const after = (
+      await app.inject({
+        method: "GET",
+        url: `/api/evaluations/${mismatchId}`,
+      })
+    ).json<{
+      evaluation: { decision: unknown; timeline: unknown[] };
+    }>().evaluation;
+    assert.equal(before.decision, null);
+    assert.equal(after.decision, null);
+    assert.equal(after.timeline.length, before.timeline.length);
+    assert.deepEqual(
+      (await app.inject({ method: "GET", url: "/api/inbox" }))
+        .json<{ items: Array<{ evaluationId: string }> }>()
+        .items.map((item) => item.evaluationId),
+      inbox.items.map((item) => item.evaluationId),
+    );
   } finally {
     await app.close();
   }

@@ -103,6 +103,15 @@ This plan is sequenced so that each stage can fail closed and be verified before
 - Gate: focused success/failure tests, full repository verification, and a direct read-only observation of the current QuietOps `main` commit and `Verify` run pass.
 - Status: implemented and verified locally plus one live public read on 2026-08-22 KST; Strands registration, ledger/UI integration, deployment evidence, browser evidence collection, background execution, and live AWS remain open.
 
+### Stage 4B-1 — Live GitHub evidence through Strands and ledger
+
+- Register exactly two live read-only tools for source revision and required CI status, backed by one shared GitHub collection so the same commit/run snapshot is reused.
+- Give the live invocation a two-call allowlist and preserve provider, provider record ID, source URL, fetch time, evidence ID, and zero-mutation receipt.
+- Persist the live source/CI observations, tool receipts, deterministic policy, and completion event through the existing append-only application/SQLite path.
+- Represent absent deployment evidence as `Could not complete` with no human action; never synthesize a deployment observation or allow a partial evaluation to become `Ready`.
+- Gate: focused agent and file-reopen ledger tests, full repository verification, and an actual public GitHub → Strands → policy → SQLite command pass.
+- Status: implemented and directly verified on 2026-08-22 KST; deployment collection, browser integration, background execution, live Bedrock/AgentCore, and a fully live Ready/mismatch contrast remain open.
+
 ## Stage 5 — API and user experience
 
 - Add validated API routes, resumable SSE, idempotent decisions, and consistent projections.

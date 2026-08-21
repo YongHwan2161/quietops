@@ -75,4 +75,11 @@ Stage 4B-0 adds the first live-provider seam without overstating product complet
 - Invalid, missing, non-allowlisted, oversized, redirected, rate-limited, or timed-out evidence fails closed.
 - The adapter remains separate from the Strands runner, application service, ledger, and browser until the next integration increment; current browser evaluations therefore remain explicitly fixture-backed.
 
-This slice does not satisfy the full P0 boundary by itself. Pending/checking progress, stale and missing evidence paths, resumable SSE, export consistency, authentication, browser evidence collection, and live-provider collection remain unimplemented.
+Stage 4B-1 closes the agent/application seam for source and CI only:
+
+- Two bounded Strands tools share one live GitHub collection and persist the exact provider receipts with the observations and policy result.
+- Missing deployment evidence produces `Could not complete`, no attention request, and no allowed human decision.
+- The file-backed integration test proves the source/CI receipts survive ledger reopen; the live command separately proves the public GitHub → Strands → SQLite path.
+- The browser remains fixture-backed, so this increment is not a fully live Ready or mismatch journey.
+
+This slice does not satisfy the full P0 boundary by itself. Pending/checking progress, stale evidence, resumable SSE, export consistency, authentication, deployment/browser evidence collection, background execution, and a fully live browser journey remain unimplemented.

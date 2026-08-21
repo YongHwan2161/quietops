@@ -4,6 +4,7 @@ import {
   MISMATCH_FIXTURE,
   READY_FIXTURE,
   type EvidenceObservation,
+  type FixtureReleaseScenario,
   type ReleaseFixture,
   type ReleaseScenario,
   type ToolCallReceipt,
@@ -15,7 +16,10 @@ import { createEvidenceRecorder, createEvidenceTools } from "./tools.js";
 
 export const STRANDS_SDK_VERSION = "1.13.0" as const;
 
-export type MismatchModelMode = "credential-free-scripted" | "bedrock-live";
+export type MismatchModelMode =
+  | "credential-free-scripted"
+  | "bedrock-live"
+  | "github-public-read-only-scripted";
 
 export type RunMismatchOptions =
   | {
@@ -54,7 +58,7 @@ export async function runReadySlice(): Promise<ReadySliceResult> {
   return runReleaseSlice(READY_FIXTURE, {});
 }
 
-export async function runReleaseSlice<Scenario extends ReleaseScenario>(
+export async function runReleaseSlice<Scenario extends FixtureReleaseScenario>(
   fixture: ReleaseFixture<Scenario>,
   options: RunMismatchOptions = {},
 ): Promise<ReleaseSliceResult<Scenario>> {

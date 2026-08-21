@@ -4,6 +4,7 @@ export {
   READY_FIXTURE,
   type EvidenceKind,
   type EvidenceObservation,
+  type FixtureReleaseScenario,
   type ReleaseFixture,
   type ReleaseScenario,
   type ToolCallReceipt,
@@ -29,9 +30,19 @@ export {
   type RunMismatchOptions,
 } from "./run-mismatch.js";
 export {
+  runLiveGitHubSourceCiSlice,
+  type LiveGitHubSourceCiSliceResult,
+  type RunLiveGitHubSourceCiOptions,
+} from "./run-live-github.js";
+export {
   runJudgeDemo,
   verifyJudgeDemoResults,
   type JudgeDemoResult,
 } from "./judge.js";
 export { EVIDENCE_TOOL_BUDGET, EvidenceToolBudget } from "./tool-budget.js";
 export { EVIDENCE_TOOL_NAMES, type EvidenceToolName } from "./tools.js";
+export {
+  LIVE_GITHUB_EVIDENCE_TOOL_NAMES,
+  createLiveGitHubEvidenceTools,
+  type CreateLiveGitHubEvidenceToolsOptions,
+} from "./live-github-tools.js";

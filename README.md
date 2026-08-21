@@ -2,7 +2,7 @@
 
 QuietOps is an incrementally built release-evidence steward for solo developers and small software teams. It collects read-only release evidence, evaluates that evidence against explicit policy, and asks a human only when a genuine decision remains.
 
-> Early implementation: the repository provides a TypeScript contract kernel, credential-free Ready/mismatch Strands agent slices, an append-only SQLite application spine, a local HTTP/browser product slice, and a bounded public-GitHub source/CI evidence adapter. The mismatch slice also has an optional Bedrock model path, but no live AWS/Bedrock verification evidence. The GitHub adapter has been exercised read-only against this public repository, but it is not yet wired into the Strands evaluation, ledger, or browser product path.
+> Early implementation: the repository provides a TypeScript contract kernel, credential-free Ready/mismatch Strands agent slices, an append-only SQLite application spine, a local HTTP/browser product slice, and a bounded public-GitHub source/CI evidence path. The live GitHub path now runs through two Strands tools and preserves provider receipts in the ledger, but it deliberately returns `Could not complete` because deployment evidence is absent. It is not yet part of the browser workflow, and no live AWS/Bedrock verification evidence exists.
 
 ## Why QuietOps
 
@@ -27,15 +27,17 @@ Small teams repeatedly reconstruct release readiness from commits, CI checks, de
 - [Current judging context](docs/JUDGING_CONTEXT_2026-08-20.md)
 - [Stage 4A-2 browser product verification](docs/BROWSER_PRODUCT_SLICE_2026-08-21.md)
 - [Stage 4B-0 live GitHub evidence verification](docs/LIVE_GITHUB_EVIDENCE_2026-08-22.md)
+- [Stage 4B-1 live GitHub Strands/ledger verification](docs/LIVE_GITHUB_STRANDS_LEDGER_2026-08-22.md)
+- [Problem-selection and competition-fit rationale](docs/PROBLEM_SELECTION_RATIONALE_2026-08-22.md)
 - [Submission plan](docs/SUBMISSION_PLAN.md)
 - [Disclosures and claim boundaries](docs/DISCLOSURES.md)
 
 ## Current status
 
-- Active increment: Stage 4B-0 — bounded public-GitHub source/CI evidence adapter; the broader Stage 1, Stage 2, Stage 4, and Stage 5 plans remain incomplete
-- Implementation: candidate identity, shared vocabulary, bounded Ready/mismatch Strands paths, an optional Bedrock model path for mismatch, an append-only SQLite ledger, idempotent human decisions, re-check lineage, inbox/detail/timeline projections, and a fixed-target GitHub source/CI collector
+- Active increment: Stage 4B-1 — live public-GitHub source/CI evidence through bounded Strands tools and the append-only ledger; the broader Stage 1, Stage 2, Stage 4, and Stage 5 plans remain incomplete
+- Implementation: candidate identity, shared vocabulary, bounded Ready/mismatch Strands paths, an optional Bedrock model path for mismatch, a separate live GitHub Strands path, an append-only SQLite ledger, idempotent human decisions, re-check lineage, and inbox/detail/timeline projections
 - Browser and API: a loopback-only Fastify server exposes three validated endpoints to a repository-authored master-detail browser. The UI reads only server projections, surfaces mismatch before Ready, records Reject/Re-check through the API, and shows persisted parent/child lineage.
-- Live GitHub validation: the public read-only adapter observed the exact `main` commit and its completed `Verify` workflow with source URLs and `externalMutations: 0`; this is provider-boundary proof, not an end-to-end live evaluation
+- Live GitHub validation: two bounded Strands tools share one public source/CI collection, preserve exact provider receipts in SQLite, and return `Could not complete` with no human action because deployment evidence is missing; the browser still uses fixture scenarios
 - Live AWS/Bedrock validation: not performed for this repository
 - Deployment: not performed
 - Devpost project submission: not performed from this repository
@@ -51,6 +53,8 @@ npm run demo:judge
 npm run demo:ledger
 npm run demo:mismatch
 npm run demo:github
+npm run demo:github:agent
+npm run demo:github:ledger
 npm run demo:web
 ```
 
@@ -68,7 +72,7 @@ The command uses the AWS SDK default credential chain without reading or printin
 
 The ledger and browser demos run the same credential-free Strands scenarios through one application service. They persist completed evaluation and evidence events to an append-only SQLite ledger, rank the unresolved mismatch first, record one bounded human decision, and prove that retrying the same idempotency key returns the original receipt without appending another event. A re-check creates a child evaluation linked to its preserved parent. These local paths perform zero external mutations and are not deployment or live-provider proof.
 
-`npm run demo:github` makes two bounded `GET` requests to GitHub's public API for the fixed `YongHwan2161/quietops` `main` target: one exact commit lookup and one completed workflow-run lookup. It rejects redirects, unexpected targets, invalid or oversized responses, missing required workflows, rate limits, and timeouts. The command does not use credentials or perform an external mutation. This adapter is not yet registered as a Strands tool or persisted in the evaluation ledger.
+`npm run demo:github` exercises the raw adapter. `npm run demo:github:agent` runs the same shared collection through two bounded Strands tools. `npm run demo:github:ledger` also persists the exact commit, Actions run ID, source URLs, fetch time, policy outcome, and zero-mutation receipts through the application service. The live result is intentionally `Could not complete`: its candidate carries an explicit `.example.invalid` deployment placeholder and no deployment observation, so it cannot become `Ready`. These commands do not use credentials or perform an external mutation.
 
 ## Intended competition
 

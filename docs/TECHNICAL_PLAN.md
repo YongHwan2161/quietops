@@ -65,7 +65,13 @@ Repository-authored browser
 
 The first live-provider boundary is isolated in `@quietops/adapters`. It accepts only the exact `YongHwan2161/quietops`, `main`, and `Verify` target, constructs requests under the fixed `https://api.github.com` origin, and performs one commit lookup followed by one completed workflow-run lookup. Redirects are rejected; each request has a bounded timeout; responses are size-limited and schema-validated; missing or malformed evidence fails closed.
 
-The adapter emits source and CI observations with stable evidence IDs, source URLs, fetch time, run identity, and `externalMutations: 0`. It deliberately remains outside the current Strands tool registry, application service, ledger, and browser projections. That separation makes this increment independently verifiable without implying that the end-to-end product already uses live evidence.
+The adapter emits source and CI observations with stable evidence IDs, source URLs, fetch time, run identity, and `externalMutations: 0`. At the Stage 4B-0 checkpoint it deliberately remained outside the Strands tool registry, application service, ledger, and browser projections. That separation made the adapter independently verifiable without implying that the end-to-end product already used live evidence; the Stage 4B-1 successor below closes the agent/application/ledger part of that gap.
+
+## Implemented Stage 4B-1 live agent/ledger seam
+
+Stage 4B-1 registers the source and CI adapter behind exactly two Strands tools. Both tools share one lazy collection promise, so one commit request and one workflow-runs request produce a bound source/CI snapshot rather than two independently drifting reads. A scenario-specific two-call `EvidenceToolBudget` rejects duplicate or foreign tool use.
+
+The application persists both observations and their GitHub provider receipts through the existing append-only SQLite event path. Because no deployment collector exists, deterministic policy records `Could not complete`, no human decision is offered, and the placeholder deployment URL uses the reserved `.example.invalid` domain. The live scenario is separate from browser demo seeding and cannot silently replace the credential-free judge contrast.
 
 ## Planned modules
 

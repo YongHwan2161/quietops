@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 const GITHUB_API_ORIGIN = "https://api.github.com";
+const GITHUB_WEB_ORIGIN = "https://github.com";
 const DEFAULT_TIMEOUT_MS = 10_000;
 const MAX_RESPONSE_BYTES = 1_000_000;
 const FULL_COMMIT_PATTERN = /^[0-9a-f]{40}$/;
@@ -79,9 +80,14 @@ export interface CollectGitHubEvidenceOptions {
   readonly timeoutMs?: number;
 }
 
+const githubWebUrlSchema = z
+  .string()
+  .url()
+  .refine((value) => new URL(value).origin === GITHUB_WEB_ORIGIN);
+
 const commitResponseSchema = z.object({
   sha: z.string().regex(FULL_COMMIT_PATTERN),
-  html_url: z.string().url(),
+  html_url: githubWebUrlSchema,
 });
 
 const workflowRunSchema = z.object({
@@ -91,7 +97,7 @@ const workflowRunSchema = z.object({
   head_sha: z.string().regex(FULL_COMMIT_PATTERN),
   status: z.literal("completed"),
   conclusion: z.string().min(1),
-  html_url: z.string().url(),
+  html_url: githubWebUrlSchema,
   updated_at: z.iso.datetime({ offset: true }),
 });
 

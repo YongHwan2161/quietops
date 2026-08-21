@@ -2,7 +2,7 @@
 
 ## Repository phase
 
-This public repository contains planning documents, an MIT license, a TypeScript contract kernel, newly authored credential-free Ready/mismatch Strands agent slices, an append-only SQLite application spine, a local Fastify/browser decision workflow, and a bounded public-GitHub source/CI evidence adapter. The mismatch slice also includes an optional Bedrock model-selection path. The live-provider claim is limited to one direct read-only GitHub observation; that adapter is not yet part of the Strands evaluation, ledger, or browser workflow. Hosted deployment and live AWS/Bedrock claims remain absent.
+This public repository contains planning documents, an MIT license, a TypeScript contract kernel, newly authored credential-free Ready/mismatch Strands agent slices, an append-only SQLite application spine, a local Fastify/browser decision workflow, and a bounded public-GitHub source/CI evidence path. The GitHub collection now runs through two Strands tools and preserves provider receipts in SQLite, but it remains separate from the browser and lacks deployment evidence. Its correct live outcome is `Could not complete`, not `Ready`. Hosted deployment and live AWS/Bedrock claims remain absent.
 
 ## AI assistance
 

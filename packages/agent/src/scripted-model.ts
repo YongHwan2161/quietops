@@ -6,29 +6,13 @@ import {
   type StreamOptions,
 } from "@strands-agents/sdk";
 
+import { EVIDENCE_TOOL_NAMES } from "./tools.js";
+
 interface ScriptedTurn {
   readonly toolName?: string;
   readonly toolUseId?: string;
   readonly text?: string;
 }
-
-const SCRIPTED_TURNS: readonly ScriptedTurn[] = Object.freeze([
-  Object.freeze({
-    toolName: "observe_source_revision",
-    toolUseId: "tool-source-1",
-  }),
-  Object.freeze({
-    toolName: "observe_ci_status",
-    toolUseId: "tool-ci-1",
-  }),
-  Object.freeze({
-    toolName: "observe_deployed_revision",
-    toolUseId: "tool-deployment-1",
-  }),
-  Object.freeze({
-    text: "Narrative recommendation: Ready.",
-  }),
-]);
 
 export class ScriptedEvidenceModel extends Model<BaseModelConfig> {
   private config: BaseModelConfig = {
@@ -36,6 +20,20 @@ export class ScriptedEvidenceModel extends Model<BaseModelConfig> {
   };
 
   private turnIndex = 0;
+  private readonly turns: readonly ScriptedTurn[];
+
+  constructor(
+    toolNames: readonly string[] = EVIDENCE_TOOL_NAMES,
+    finalText = "Narrative recommendation: Ready.",
+  ) {
+    super();
+    this.turns = Object.freeze([
+      ...toolNames.map((toolName, index) =>
+        Object.freeze({ toolName, toolUseId: `tool-${index + 1}` }),
+      ),
+      Object.freeze({ text: finalText }),
+    ]);
+  }
 
   override updateConfig(modelConfig: BaseModelConfig): void {
     this.config = { ...this.config, ...modelConfig };
@@ -49,7 +47,7 @@ export class ScriptedEvidenceModel extends Model<BaseModelConfig> {
     _messages: Message[],
     _options?: StreamOptions,
   ): AsyncIterable<ModelStreamEvent> {
-    const turn = SCRIPTED_TURNS[this.turnIndex];
+    const turn = this.turns[this.turnIndex];
     this.turnIndex += 1;
 
     if (turn === undefined) {

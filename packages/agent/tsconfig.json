@@ -4,6 +4,7 @@
     "lib": ["ES2023", "DOM", "ESNext.Disposable"],
     "outDir": "dist",
     "paths": {
+      "@quietops/adapters": ["./../adapters/src/index.ts"],
       "@quietops/contracts": ["./../contracts/src/index.ts"]
     },
     "rootDir": ".",
@@ -12,6 +13,9 @@
   },
   "include": ["src/**/*.ts", "test/**/*.ts"],
   "references": [
+    {
+      "path": "../adapters"
+    },
     {
       "path": "../contracts"
     }

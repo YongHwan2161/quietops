@@ -20,11 +20,13 @@
     "build": "tsc --build",
     "clean": "tsc --build --clean && node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
     "demo:ledger": "npm run build && node ../../scripts/run-with-sqlite.mjs dist/src/demo-cli.js",
-    "pretypecheck": "npm run build --workspace @quietops/contracts && npm run build --workspace @quietops/agent && npm run build --workspace @quietops/storage",
+    "demo:github": "npm run build && node ../../scripts/run-with-sqlite.mjs dist/src/live-github-cli.js",
+    "pretypecheck": "npm run build --workspace @quietops/contracts && npm run build --workspace @quietops/adapters && npm run build --workspace @quietops/agent && npm run build --workspace @quietops/storage",
     "test": "npm run build && node ../../scripts/run-with-sqlite.mjs --test dist/test/*.test.js",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@quietops/adapters": "0.0.0",
     "@quietops/agent": "0.0.0",
     "@quietops/contracts": "0.0.0",
     "@quietops/storage": "0.0.0"

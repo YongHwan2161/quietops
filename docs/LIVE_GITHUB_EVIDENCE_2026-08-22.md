@@ -2,6 +2,8 @@
 
 This record covers the first direct provider observation made by the bounded `@quietops/adapters` package on 2026-08-22 KST. It proves a public read-only GitHub source/CI boundary. It does not prove that the Strands agent, application service, ledger, or browser currently consumes live evidence.
 
+Successor note: Stage 4B-1 later connected this adapter to a separate Strands/application/ledger path. This record remains the preserved Stage 4B-0 observation; see [Stage 4B-1 Live GitHub Strands/Ledger Verification](LIVE_GITHUB_STRANDS_LEDGER_2026-08-22.md).
+
 ## Implemented boundary
 
 ```text

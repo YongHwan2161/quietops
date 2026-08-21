@@ -32,4 +32,4 @@ The server defaults to `local-interactive` for compatibility with the existing l
 
 ## Remaining Stage 4C-1 work
 
-This is not hosting readiness or deployment evidence. The server still needs explicit host and platform `PORT` handling, a health route, a no-store release marker bound to a build commit, a persistent production database path, and deterministic production/Railway start configuration. Billing review and every Railway mutation remain separately gated.
+This is not hosting readiness or deployment evidence. Stage 4C-1b subsequently closed explicit host, platform `PORT`, and process-liveness work locally. The server still needs a no-store release marker bound to a build commit, a persistent production database path, and deterministic production/Railway start configuration. Billing review and every Railway mutation remain separately gated.

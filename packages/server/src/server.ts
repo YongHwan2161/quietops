@@ -133,6 +133,8 @@ export async function createQuietOpsServer(
     );
   });
 
+  app.get("/health", async () => ({ status: "ok" }));
+
   app.get("/api/inbox", async () => ({
     capabilities: Object.freeze({ decisionMode }),
     items: service.listInbox(),

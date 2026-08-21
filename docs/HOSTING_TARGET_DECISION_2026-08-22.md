@@ -34,8 +34,8 @@ Official references: [Lightsail container services](https://docs.aws.amazon.com/
 
 The current server must not be published as-is:
 
-1. It listens only on `127.0.0.1` and reads `QUIETOPS_PORT` rather than the platform-standard `PORT` variable.
-2. It has no health endpoint and no `/.well-known/quietops-release.json` endpoint.
+1. Closed locally by Stage 4C-1b: only `127.0.0.1` and `0.0.0.0` are accepted, the platform `PORT` is validated, ambiguous dual-port configuration fails closed, and non-loopback binding requires `public-read-only`.
+2. Partially closed locally by Stage 4C-1b: `GET /health` now provides no-store process liveness. The `/.well-known/quietops-release.json` endpoint remains absent.
 3. Closed locally by Stage 4C-1a: explicit `public-read-only` mode keeps evidence visible, removes decision controls, and rejects otherwise valid decision writes without changing the ledger. Authentication for a future shared interactive workflow remains out of scope.
 4. The default SQLite path is repository-local. A Railway deployment needs a volume mounted at a fixed path such as `/data` and `QUIETOPS_DB_PATH=/data/quietops.sqlite`.
 5. There is no deployment start command or Railway configuration in the repository.
@@ -46,8 +46,8 @@ The public-write boundary was the decisive first blocker and is now closed local
 
 Stage 4C-1 should make the server hosting-ready without deploying it:
 
-- parse an explicit host and the platform `PORT` safely;
-- expose a credential-free health check;
+- use the verified explicit host and platform `PORT` contract (`COMPLETE_LOCAL`, Stage 4C-1b);
+- use the verified credential-free no-store liveness check (`COMPLETE_LOCAL`, Stage 4C-1b);
 - expose a no-store release marker bound to a build-time full commit;
 - use the verified `public-read-only` decision policy so an anonymous visitor cannot corrupt the shared judge state (`COMPLETE_LOCAL`, Stage 4C-1a);
 - add a deterministic production start command and Railway configuration;

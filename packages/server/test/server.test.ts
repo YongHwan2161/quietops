@@ -22,6 +22,11 @@ test("serves one persisted Ready and mismatch workflow over HTTP", async () => {
       /default-src 'self'/,
     );
 
+    const healthResponse = await app.inject({ method: "GET", url: "/health" });
+    assert.equal(healthResponse.statusCode, 200);
+    assert.deepEqual(healthResponse.json(), { status: "ok" });
+    assert.equal(healthResponse.headers["cache-control"], "no-store");
+
     const inbox = inboxResponse.json<{
       capabilities: { decisionMode: string };
       items: Array<{

@@ -55,6 +55,12 @@ The server is constructed with one explicit decision mode. `local-interactive` i
 
 The browser initializes fail-closed to the public state and unlocks decision inputs only when the server explicitly reports `local-interactive`. Public mode renders the unresolved human-decision reason as a product boundary rather than a disabled form. This is anonymous evidence viewing, not authentication or a shared interactive workflow.
 
+### Stage 4C-1b process boundary
+
+`resolveQuietOpsRuntimeConfig` centralizes the CLI's environment contract. It accepts the loopback default or an explicit `0.0.0.0`, parses the platform `PORT` and local `QUIETOPS_PORT` under one numeric range, rejects conflicting values, and prevents an interactive server from binding beyond loopback. This validation completes before database construction or network listening.
+
+`GET /health` returns only `{ "status": "ok" }` under the server's global `no-store` and security headers. It proves that the HTTP process can respond; readiness of SQLite, source/CI evidence, a deployment marker, or any external provider remains a separate future contract.
+
 - Re-check returns the persisted receipt plus its child projection. Inbox reload and process restart reconstruct the same parent/child history from SQLite.
 - Static HTML/CSS/JavaScript keeps this slice build-light. Fastify is the only new direct locked runtime dependency; Playwright CLI is an external local verification tool rather than an application dependency.
 
@@ -108,9 +114,9 @@ Failed, Unknown, Stale, missing, foreign, fabricated, or duplicate evidence must
 
 ## API direction
 
-The broader planned API will provide evaluation creation, event replay, audit export, health, readiness, and resumable event delivery. Mutation requests will require idempotency keys, and any later SSE reconnection will resume from the last persisted event.
+The broader planned API will provide evaluation creation, event replay, audit export, dependency-aware readiness, and resumable event delivery. Mutation requests will require idempotency keys, and any later SSE reconnection will resume from the last persisted event.
 
-Stage 4A-2 implements the first three HTTP routes: inbox, evaluation detail, and decisions. Stage 4C-1a adds the explicit local-interactive/public-read-only capability without adding a route. The slices verify HTTP validation, status/error mapping, duplicate-action replay, public write rejection, browser consumption, and restart persistence. Authentication, creation routes, SSE replay, export, health/readiness, and any destructive demo reset remain future work.
+Stage 4A-2 implements inbox, evaluation detail, and decision routes. Stage 4C-1a adds the explicit local-interactive/public-read-only capability, and Stage 4C-1b adds process liveness. The slices verify HTTP validation, status/error mapping, duplicate-action replay, public write rejection, browser consumption, restart persistence, runtime binding guards, and liveness headers. Authentication, creation routes, SSE replay, export, dependency-aware readiness, and any destructive demo reset remain future work.
 
 ## Deployment boundary
 

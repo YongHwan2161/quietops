@@ -138,6 +138,14 @@ This plan is sequenced so that each stage can fail closed and be verified before
 - Gate: focused HTTP tests, TypeScript and browser syntax checks, an actual headed-browser refresh with no decision controls, zero browser console errors or warnings, full repository verification, and zero external mutations pass.
 - Status: implemented and locally verified on 2026-08-22 KST; host/`PORT`, health, release marker, persistent-volume path, production start configuration, and deployment remain open.
 
+### Stage 4C-1b — Host, platform port, and liveness boundary
+
+- Parse only `127.0.0.1` or `0.0.0.0`; require `public-read-only` whenever the process binds beyond loopback.
+- Accept the platform-standard `PORT` and existing `QUIETOPS_PORT` in the range 1-65535; fail closed when both resolve to different ports.
+- Add credential-free `GET /health` with a minimal `{ "status": "ok" }` body and `Cache-Control: no-store`; treat it as process liveness, not ledger or provider readiness.
+- Gate: runtime-configuration edge tests, focused server verification, and an actual `0.0.0.0` + `PORT` + public-read-only process probe pass with zero external mutations.
+- Status: implemented and locally verified on 2026-08-22 KST; release marker, persistent-volume path, production/Railway start configuration, and deployment remain open.
+
 ## Stage 5 — API and user experience
 
 - Add validated API routes, resumable SSE, idempotent decisions, and consistent projections.

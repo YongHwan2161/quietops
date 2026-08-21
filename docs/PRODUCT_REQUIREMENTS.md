@@ -96,4 +96,10 @@ Stage 4C-1a establishes the public-demo write boundary without claiming a hosted
 - The server rejects an otherwise valid public decision request with `403 PUBLIC_DEMO_READ_ONLY`; the evaluation, timeline, and inbox identity remain unchanged.
 - Missing or unrecognized browser capability data fails closed to the public read-only presentation.
 
+Stage 4C-1b establishes the public process boundary without claiming deployment readiness:
+
+- The local default remains `127.0.0.1:4173`; a non-loopback bind accepts only `0.0.0.0` and requires `public-read-only`.
+- The standard `PORT` and local `QUIETOPS_PORT` accept only integers from 1 through 65535, and conflicting dual configuration fails closed.
+- `GET /health` reports process liveness with no-store caching. It does not inspect or claim SQLite, live evidence, deployment identity, or provider readiness.
+
 This slice does not satisfy the full P0 boundary by itself. Pending/checking progress, stale evidence, resumable SSE, export consistency, authentication, live deployment/browser evidence integration, background execution, and a fully live browser journey remain unimplemented.

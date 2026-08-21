@@ -151,6 +151,36 @@ test("fails closed before persistence when runner receipts do not bind evidence"
   }
 });
 
+test("commits a demo scenario batch only after every agent result verifies", async () => {
+  const ledger = new SQLiteEvaluationLedger();
+  try {
+    const baseline = await runReadySlice();
+    let runCount = 0;
+    const service = new EvaluationService(ledger, {
+      runScenario: async () => {
+        runCount += 1;
+        return runCount === 1
+          ? baseline
+          : {
+              ...baseline,
+              policy: {
+                ...baseline.policy,
+                evidenceIds: ["foreign-evidence"],
+              },
+            };
+      },
+    });
+
+    await assert.rejects(
+      service.startDemoEvaluations(["ready", "deployed-sha-mismatch"]),
+      StoredEvaluationInvariantError,
+    );
+    assert.deepEqual(ledger.listEvaluations(), []);
+  } finally {
+    ledger.close();
+  }
+});
+
 function createService(ledger: SQLiteEvaluationLedger): EvaluationService {
   let sequence = 0;
   return new EvaluationService(ledger, {

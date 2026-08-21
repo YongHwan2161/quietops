@@ -18,11 +18,12 @@
     "demo:ledger": "npm run demo:ledger --workspace @quietops/application",
     "demo:mismatch": "npm run demo:mismatch --workspace @quietops/agent",
     "demo:mismatch:bedrock": "npm run demo:mismatch:bedrock --workspace @quietops/agent",
-    "format": "prettier --write package.json tsconfig.json \"packages/**/*.{json,ts}\"",
-    "format:check": "prettier --check package.json tsconfig.json \"packages/**/*.{json,ts}\"",
+    "demo:web": "npm run demo:web --workspace @quietops/server",
+    "format": "prettier --write package.json tsconfig.json \"packages/**/*.{css,html,js,json,ts}\"",
+    "format:check": "prettier --check package.json tsconfig.json \"packages/**/*.{css,html,js,json,ts}\"",
     "test": "npm run test --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "verify": "npm run format:check && npm run typecheck && npm test"
+    "verify": "npm run format:check && npm run typecheck && npm run check:browser --workspaces --if-present && npm test"
   },
   "devDependencies": {
     "@types/node": "22.20.1",

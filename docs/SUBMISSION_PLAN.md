@@ -44,5 +44,5 @@ This is a planning snapshot dated 2026-08-16. The official event page and rules 
 
 ## Current holds
 
-- The credential-free Ready/mismatch judge path and a fixture-backed append-only evaluation/application spine are implemented. The API/SSE layer, browser product experience, live provider collectors, export, Docker packaging, architecture assets, and public video remain incomplete.
+- The credential-free Ready/mismatch judge path, append-only evaluation/application spine, and a loopback-only HTTP/browser decision workflow are implemented. SSE, background orchestration, browser/live-provider collectors, export, authentication, Docker packaging, architecture assets, and public video remain incomplete.
 - No deployment, live Bedrock/AgentCore proof, public video, or Devpost submission has been performed from this repository.

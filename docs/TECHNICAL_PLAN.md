@@ -2,7 +2,7 @@
 
 ## Planned architecture
 
-QuietOps will use a TypeScript workspace with a React browser application, Fastify API, application services, a Strands agent boundary, purpose-built evidence adapters, deterministic policy, and SQLite audit storage.
+QuietOps uses a TypeScript workspace with a browser application, Fastify API, application services, a Strands agent boundary, purpose-built evidence adapters, deterministic policy, and SQLite audit storage. The first browser slice uses repository-authored HTML, CSS, and JavaScript without a client framework; a later framework migration must justify its additional dependency and build surface.
 
 ```text
 Browser UI
@@ -31,7 +31,25 @@ Inbox/detail/timeline projections
 - `@quietops/storage` uses the Node.js built-in `node:sqlite` API with foreign keys, strict tables, a single-decision index, and triggers that reject update or delete operations on evaluation, event, and idempotency tables.
 - `@quietops/application` persists the actual agent result rather than client-authored fixture JSON, reconstructs projections from stored events, records a bounded decision once, and creates a linked child evaluation for re-check.
 - A version-aware launcher enables SQLite explicitly on the local Node.js 22.12 runtime and uses the unflagged API on Node.js 22.13 or later, including the pinned CI runtime Node.js 22.22.3.
-- No server route, SSE stream, browser code, authentication, or live collector is implemented by this slice.
+- Stage 4A-1 itself introduced no server route, SSE stream, browser code, authentication, or live collector.
+
+## Implemented Stage 4A-2 product seam
+
+```text
+Repository-authored browser
+  -> GET /api/inbox
+  -> GET /api/evaluations/:evaluationId
+  -> POST /api/evaluations/:evaluationId/decisions + Idempotency-Key
+    -> EvaluationService
+      -> file-backed append-only SQLite ledger
+      -> existing bounded Ready/mismatch Strands runner for empty-demo seeding
+```
+
+- `@quietops/server` binds the demo to `127.0.0.1`, applies strict request schemas and browser security headers, maps known domain conflicts without exposing internal errors, and closes its ledger with the server lifecycle.
+- An empty database is seeded once through one atomic `EvaluationService.startDemoEvaluations` batch; a non-empty database is never reset or reseeded at startup.
+- The browser uses same-origin JSON only and renders dynamic evidence through DOM text nodes. It does not import fixtures, derive policy, access SQLite, or retain the authoritative decision only in client state.
+- Re-check returns the persisted receipt plus its child projection. Inbox reload and process restart reconstruct the same parent/child history from SQLite.
+- Static HTML/CSS/JavaScript keeps this slice build-light. Fastify is the only new direct locked runtime dependency; Playwright CLI is an external local verification tool rather than an application dependency.
 
 ## Trust boundaries
 
@@ -52,7 +70,7 @@ Inbox/detail/timeline projections
 - `adapters`: fixture, HTTP, GitHub/CI, deployment, and Playwright collectors.
 - `application`: evaluation orchestration, retries, finalization, recovery, and decisions.
 - `server`: validated API, resumable SSE, health, readiness, and export.
-- `web`: inbox, evaluation progress, Ready packet, decision card, and history.
+- `web`: the current static master-detail inbox and decision card; evaluation progress, Ready packet, richer history, and export remain planned.
 
 ## Planned outcome rules
 
@@ -65,9 +83,9 @@ Failed, Unknown, Stale, missing, foreign, fabricated, or duplicate evidence must
 
 ## API direction
 
-The planned API will provide inbox, evaluation creation/detail, event replay, decisions, re-check, audit export, demo reset, health, and readiness endpoints. Mutation requests will require idempotency keys, and SSE reconnection will resume from the last persisted event.
+The broader planned API will provide evaluation creation, event replay, audit export, health, readiness, and resumable event delivery. Mutation requests will require idempotency keys, and any later SSE reconnection will resume from the last persisted event.
 
-Stage 4A-1 defines and verifies the inbox, evaluation-detail, and timeline projection shapes inside the application package. HTTP validation, status codes, authentication boundaries, SSE replay, and browser consumption remain future work.
+Stage 4A-2 implements the first three HTTP routes: inbox, evaluation detail, and decisions. It verifies HTTP validation, status/error mapping, duplicate-action replay, browser consumption, and restart persistence. Authentication, creation routes, SSE replay, export, health/readiness, and any destructive demo reset remain future work.
 
 ## Deployment boundary
 

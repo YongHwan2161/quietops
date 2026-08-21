@@ -51,7 +51,7 @@ QuietOps handles routine release-evidence work quietly. If it interrupts the use
 
 The P0 product is acceptable only when the Ready and mismatch journeys run end to end, duplicate actions are idempotent, stale or missing evidence fails closed, exports match screen projections, and the complete judge path performs zero external mutations.
 
-## Implemented application spine
+## Implemented application and browser spine
 
 Stage 4A-1 now provides the browser-independent state path for the credential-free demo:
 
@@ -62,4 +62,11 @@ Stage 4A-1 now provides the browser-independent state path for the credential-fr
 - An idempotency-key replay returns the original decision receipt without creating another event.
 - Re-check creates a child evaluation and preserves the parent evidence and decision timeline.
 
-This increment does not satisfy the P0 product boundary by itself. Pending/checking progress, stale and missing evidence paths, API/SSE delivery, browser rendering, export consistency, and live-provider collection remain unimplemented.
+Stage 4A-2 adds the first judge-visible product path:
+
+- A loopback-only HTTP server reconstructs inbox and detail responses from the file-backed ledger.
+- The browser consumes only those HTTP projections; it does not import scenario fixtures or calculate the policy outcome.
+- The initial view places an unresolved mismatch above the quiet Ready history and shows expected versus observed evidence beside zero-mutation tool receipts.
+- Reject and Re-check are real API commands with required idempotency keys. Re-check opens a fresh child evaluation while both directions of the persisted lineage remain navigable after refresh or restart.
+
+This slice does not satisfy the full P0 boundary by itself. Pending/checking progress, stale and missing evidence paths, resumable SSE, export consistency, authentication, browser evidence collection, and live-provider collection remain unimplemented.

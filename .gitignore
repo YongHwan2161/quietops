@@ -2,6 +2,9 @@ node_modules/
 dist/
 *.tsbuildinfo
 coverage/
+output/
+.playwright-cli/
+.quietops/
 .env
 .env.*
 !.env.example

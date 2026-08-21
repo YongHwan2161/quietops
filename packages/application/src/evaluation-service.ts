@@ -173,12 +173,31 @@ export class EvaluationService {
   async startDemoEvaluation(
     scenario: ReleaseScenario,
   ): Promise<EvaluationDetailProjection> {
-    const created = await this.#buildEvaluation(scenario, null);
+    const [evaluation] = await this.startDemoEvaluations([scenario]);
+    if (!evaluation) {
+      throw new Error("Demo evaluation batch did not return its evaluation.");
+    }
+    return evaluation;
+  }
+
+  async startDemoEvaluations(
+    scenarios: readonly ReleaseScenario[],
+  ): Promise<readonly EvaluationDetailProjection[]> {
+    if (scenarios.length === 0) {
+      throw new Error("At least one demo evaluation scenario is required.");
+    }
+
+    const created = [];
+    for (const scenario of scenarios) {
+      created.push(await this.#buildEvaluation(scenario, null));
+    }
     this.#ledger.commit({
-      evaluations: [created.evaluation],
-      events: created.events,
+      evaluations: created.map((item) => item.evaluation),
+      events: created.flatMap((item) => item.events),
     });
-    return this.getEvaluation(created.evaluation.evaluationId);
+    return Object.freeze(
+      created.map((item) => this.getEvaluation(item.evaluation.evaluationId)),
+    );
   }
 
   async recordDecision(

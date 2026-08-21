@@ -85,6 +85,15 @@ This plan is sequenced so that each stage can fail closed and be verified before
 - Create Re-check requested as a new child evaluation without rewriting its parent evidence or decision.
 - Status: implemented and locally verified; background execution, progress events, bounded retries, recovery, API/SSE, browser collection, and browser UI remain open.
 
+### Stage 4A-2 — Local HTTP/browser product slice
+
+- Add a loopback-only Fastify server backed by one file-based `SQLiteEvaluationLedger` and the existing `EvaluationService`.
+- Expose only inbox, evaluation detail, and idempotent decision routes; seed an empty demo ledger through the actual credential-free Strands runner rather than browser-owned fixtures.
+- Render one master-detail release inbox that quietly places Ready in history, leads with an unresolved mismatch, compares expected and observed evidence, and records Reject or Re-check through the API.
+- Preserve the decision receipt and parent/child evaluation lineage across refresh and server restart.
+- Gate: HTTP contract, invalid-input, decision replay, restart-persistence, browser syntax, and an actual Playwright desktop journey pass with zero console errors and zero external mutations.
+- Status: implemented and locally verified; SSE, background scheduling, browser evidence collection, authentication, export, live providers, deployment, and broader Stage 5 UX remain open.
+
 ## Stage 5 — API and user experience
 
 - Add validated API routes, resumable SSE, idempotent decisions, and consistent projections.

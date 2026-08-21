@@ -14,6 +14,7 @@
   "scripts": {
     "build": "npm run build --workspaces --if-present",
     "clean": "npm run clean --workspaces --if-present",
+    "demo:github": "npm run demo:github --workspace @quietops/adapters",
     "demo:judge": "npm run demo:judge --workspace @quietops/agent",
     "demo:ledger": "npm run demo:ledger --workspace @quietops/application",
     "demo:mismatch": "npm run demo:mismatch --workspace @quietops/agent",

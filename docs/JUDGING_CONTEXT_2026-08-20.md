@@ -4,7 +4,7 @@
 
 This focused successor records the current official judging context used to choose the next QuietOps increment. It was returned by the signed-in Devpost MCP session for the Agents for Humans Hackathon. It supplements rather than rewrites the historical [event rule record](EVENT_RULE_RECORD.md), and the [official event](https://agentsforhumans.devpost.com) remains authoritative.
 
-Implementation update: Stage 4A-2 subsequently delivered and locally verified the first HTTP/browser decision workflow. See [Stage 4A-2 Browser Product Slice Verification](BROWSER_PRODUCT_SLICE_2026-08-21.md). The judging criteria below remain the point-in-time basis for that increment.
+Implementation update: Stage 4A-2 subsequently delivered and locally verified the first HTTP/browser decision workflow. Stage 4B-0 then added and directly exercised a bounded public-GitHub source/CI evidence adapter without yet wiring it into the product evaluation. See [Stage 4A-2 Browser Product Slice Verification](BROWSER_PRODUCT_SLICE_2026-08-21.md) and [Stage 4B-0 Live GitHub Evidence Verification](LIVE_GITHUB_EVIDENCE_2026-08-22.md). The judging criteria below remain the point-in-time basis for those increments.
 
 ## Snapshot identity
 

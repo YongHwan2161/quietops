@@ -69,4 +69,10 @@ Stage 4A-2 adds the first judge-visible product path:
 - The initial view places an unresolved mismatch above the quiet Ready history and shows expected versus observed evidence beside zero-mutation tool receipts.
 - Reject and Re-check are real API commands with required idempotency keys. Re-check opens a fresh child evaluation while both directions of the persisted lineage remain navigable after refresh or restart.
 
+Stage 4B-0 adds the first live-provider seam without overstating product completion:
+
+- A fixed-target, read-only GitHub adapter collects the exact public `main` revision and completed required `Verify` workflow with source receipts.
+- Invalid, missing, non-allowlisted, oversized, redirected, rate-limited, or timed-out evidence fails closed.
+- The adapter remains separate from the Strands runner, application service, ledger, and browser until the next integration increment; current browser evaluations therefore remain explicitly fixture-backed.
+
 This slice does not satisfy the full P0 boundary by itself. Pending/checking progress, stale and missing evidence paths, resumable SSE, export consistency, authentication, browser evidence collection, and live-provider collection remain unimplemented.

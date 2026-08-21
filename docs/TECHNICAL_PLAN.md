@@ -61,13 +61,19 @@ Repository-authored browser
 - Browser collection will use a fresh isolated context with bounded time, redirects, and output.
 - Logs, exports, and agent context will exclude credentials, authorization headers, cookies, raw pages, and private reasoning.
 
+## Implemented Stage 4B-0 provider seam
+
+The first live-provider boundary is isolated in `@quietops/adapters`. It accepts only the exact `YongHwan2161/quietops`, `main`, and `Verify` target, constructs requests under the fixed `https://api.github.com` origin, and performs one commit lookup followed by one completed workflow-run lookup. Redirects are rejected; each request has a bounded timeout; responses are size-limited and schema-validated; missing or malformed evidence fails closed.
+
+The adapter emits source and CI observations with stable evidence IDs, source URLs, fetch time, run identity, and `externalMutations: 0`. It deliberately remains outside the current Strands tool registry, application service, ledger, and browser projections. That separation makes this increment independently verifiable without implying that the end-to-end product already uses live evidence.
+
 ## Planned modules
 
 - `contracts`: schemas and public domain types.
 - `domain`: lifecycle, outcome vocabulary, attention ranking, and policy matrix.
 - `storage`: migrations, append-only repositories, idempotency, redaction, and projections.
 - `agent`: Strands runtime interface, bounded prompt, registered tools, and safe telemetry.
-- `adapters`: fixture, HTTP, GitHub/CI, deployment, and Playwright collectors.
+- `adapters`: the bounded public-GitHub source/CI collector is implemented; fixture, deployment, HTTP-marker, and Playwright collectors plus Strands/application integration remain planned.
 - `application`: evaluation orchestration, retries, finalization, recovery, and decisions.
 - `server`: validated API, resumable SSE, health, readiness, and export.
 - `web`: the current static master-detail inbox and decision card; evaluation progress, Ready packet, richer history, and export remain planned.

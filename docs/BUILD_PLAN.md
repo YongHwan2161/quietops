@@ -94,6 +94,15 @@ This plan is sequenced so that each stage can fail closed and be verified before
 - Gate: HTTP contract, invalid-input, decision replay, restart-persistence, browser syntax, and an actual Playwright desktop journey pass with zero console errors and zero external mutations.
 - Status: implemented and locally verified; SSE, background scheduling, browser evidence collection, authentication, export, live providers, deployment, and broader Stage 5 UX remain open.
 
+### Stage 4B-0 — Bounded GitHub source/CI evidence adapter
+
+- Add a separate adapter package that reads the exact public source revision and completed required GitHub Actions workflow for one fixed repository, branch, and workflow allowlist.
+- Use only bounded unauthenticated `GET` requests to the fixed GitHub API origin; reject redirects, non-allowlisted targets, invalid or oversized payloads, missing required workflows, rate limits, and timeouts.
+- Preserve the full commit, evidence URL, workflow run ID and URL, completion time, fetch time, and hard-zero external-mutation receipt.
+- Keep the credential-free fixture path unchanged and do not represent the adapter as a completed live evaluation until it is registered in the Strands tools, persisted, and shown through the browser product path.
+- Gate: focused success/failure tests, full repository verification, and a direct read-only observation of the current QuietOps `main` commit and `Verify` run pass.
+- Status: implemented and verified locally plus one live public read on 2026-08-22 KST; Strands registration, ledger/UI integration, deployment evidence, browser evidence collection, background execution, and live AWS remain open.
+
 ## Stage 5 — API and user experience
 
 - Add validated API routes, resumable SSE, idempotent decisions, and consistent projections.

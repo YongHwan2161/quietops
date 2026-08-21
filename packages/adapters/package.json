@@ -1,0 +1,29 @@
+{
+  "name": "@quietops/adapters",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Bounded read-only evidence adapters for QuietOps.",
+  "license": "MIT",
+  "type": "module",
+  "main": "dist/src/index.js",
+  "types": "dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/src/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc --build",
+    "clean": "tsc --build --clean && node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+    "demo:github": "npm run build && node dist/src/github-cli.js",
+    "test": "npm run build && node --test dist/test/*.test.js",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "zod": "4.1.12"
+  }
+}

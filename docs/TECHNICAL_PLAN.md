@@ -80,6 +80,10 @@ This check runs before `mkdir`, SQLite construction, or `listen`. It prevents th
 
 The root `npm start` command delegates to `@quietops/server`, whose start script executes only the prebuilt `dist/src/cli.js` through the existing Node SQLite version guard. Installation and `npm run build` remain explicit build-phase operations. Startup therefore consumes the same fail-closed runtime environment contract without compiling code, introducing Railway-specific defaults, or claiming that an external path is a managed volume.
 
+### Stage 4C-1f Railway configuration
+
+The root `railway.json` uses Railway's published JSON Schema and fixes only the Railpack builder, root build/start commands, `/health`, and a 60-second health-check timeout. It does not contain variables or select a volume, domain, region, scaling, or restart policy. A future authorized service must explicitly provide `QUIETOPS_HOST`, `QUIETOPS_DECISION_MODE`, `QUIETOPS_RELEASE_COMMIT`, and `QUIETOPS_DB_PATH`; Railway supplies `PORT` at runtime.
+
 ## Trust boundaries
 
 - Tool inputs are schema validated and restricted to configured targets.

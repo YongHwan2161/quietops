@@ -29,4 +29,4 @@ The process used the pre-commit HEAD as its configured marker. A final post-comm
 
 ## Remaining Stage 4C-1 work
 
-A narrowly reviewed Railway configuration and a real managed volume remain. Every Railway resource, domain, build, deployment, and billing mutation stays behind explicit approval.
+Stage 4C-1f subsequently added the schema-bound local Railway build/start/health configuration. Required service variables and a real managed volume remain. Every Railway resource, domain, build, deployment, and billing mutation stays behind explicit approval.

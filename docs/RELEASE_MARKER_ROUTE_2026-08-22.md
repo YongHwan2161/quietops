@@ -31,4 +31,4 @@ The response is JSON under `Cache-Control: no-store`. Without the setting, the r
 
 ## Remaining Stage 4C-1 work
 
-The local producer and collector schemas now match, but no real HTTPS target exists and the collector is not wired into Strands, SQLite, or the browser. Stage 4C-1d subsequently added the external SQLite path contract and local restart proof, and Stage 4C-1e added the deterministic local production-start command. A real managed volume and Railway configuration remain before any external resource request.
+The local producer and collector schemas now match, but no real HTTPS target exists and the collector is not wired into Strands, SQLite, or the browser. Stage 4C-1d subsequently added the external SQLite path contract and local restart proof, Stage 4C-1e added the deterministic local production-start command, and Stage 4C-1f added the local Railway build/start/health configuration. A real managed volume and service variables remain before any external resource request.

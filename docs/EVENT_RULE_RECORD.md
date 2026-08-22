@@ -105,6 +105,12 @@ Decision: `HOLD_OFFICIAL_CLARIFICATION`. This inconsistency affects only the opt
 
 This record satisfies the event-rule evidence requirement for starting fresh implementation in this repository. It does not prove future functionality, dependency compliance, live AWS behavior, deployment, video, or submission.
 
+## AWS promotional credits resource snapshot — 2026-08-22
+
+The signed-in Devpost MCP returned the host-published Resources tab as complete at `2026-08-22T05:53:01Z`. It says registered participants may [request $50 in AWS Promotional Credits](https://forms.gle/Ssr8zLw4afKg114M7) for build costs, while supplies last, by **September 11, 2026 at 12:00 PM Pacific Time**, subject to the [AWS Promotional Credits terms](https://aws.amazon.com/awscredits/). The event overview separately directs participants to the [official Resources tab](https://agentsforhumans.devpost.com/resources) for that request form.
+
+Decision: `AVAILABLE_TO_REQUEST_NOT_CLAIMED`. No form was submitted in this repository workflow, and no approval, credit balance, AWS usage, or billing result has been observed. This is a current event resource notice, not a change to the rule acknowledgments above.
+
 ## Refresh and invalidation
 
 Refresh this record from the official Devpost MCP:

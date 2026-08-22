@@ -170,6 +170,14 @@ This plan is sequenced so that each stage can fail closed and be verified before
 - Gate: a clean build, an actual public-mode `npm start` process probe, exact health and release-marker responses, full repository verification, and zero external mutations pass.
 - Status: implemented and locally verified on 2026-08-22 KST; Railway configuration, a real Railway volume, HTTPS hosting, and live collector integration remain open.
 
+### Stage 4C-1f — Railway configuration boundary
+
+- Add one root `railway.json` using Railway's current official schema with explicit Railpack, `npm run build`, `npm start`, `/health`, and a bounded health-check timeout.
+- Keep variables, volume mount, domain, region, scaling, restart policy, service creation, and deployment outside the file so they remain explicit external decisions.
+- Extend repository formatting checks to parse and format the configuration without adding a runtime or development dependency.
+- Gate: official JSON Schema validation, exact contract inspection, build, actual public-mode start/health/marker probe, full repository verification, and zero external mutations pass.
+- Status: implemented and locally verified on 2026-08-22 KST; required service variables, a real Railway volume, HTTPS hosting, and live collector integration remain open.
+
 ## Stage 5 — API and user experience
 
 - Add validated API routes, resumable SSE, idempotent decisions, and consistent projections.

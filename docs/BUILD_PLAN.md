@@ -146,6 +146,14 @@ This plan is sequenced so that each stage can fail closed and be verified before
 - Gate: runtime-configuration edge tests, focused server verification, and an actual `0.0.0.0` + `PORT` + public-read-only process probe pass with zero external mutations.
 - Status: implemented and locally verified on 2026-08-22 KST; release marker, persistent-volume path, production/Railway start configuration, and deployment remain open.
 
+### Stage 4C-1c — Exact-commit release-marker route
+
+- Accept an optional `QUIETOPS_RELEASE_COMMIT` only when it is exactly 40 lowercase hexadecimal characters; require it before any `0.0.0.0` bind.
+- Serve `/.well-known/quietops-release.json` only when configured, using the Stage 4B-2 strict schema for `YongHwan2161/quietops` and the server's global no-store headers.
+- Leave the route absent when no commit is configured so a local default cannot fabricate deployment identity.
+- Gate: runtime and server tests reject missing/invalid public marker configuration, exact JSON and headers pass, full repository verification passes, and a post-commit process probe returns the running checkout's exact full HEAD.
+- Status: implemented and locally verified on 2026-08-22 KST; persistent-volume path, production/Railway start configuration, real HTTPS hosting, and live collector integration remain open.
+
 ## Stage 5 — API and user experience
 
 - Add validated API routes, resumable SSE, idempotent decisions, and consistent projections.

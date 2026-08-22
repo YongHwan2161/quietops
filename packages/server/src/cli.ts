@@ -5,7 +5,8 @@ import { fileURLToPath } from "node:url";
 import { resolveQuietOpsRuntimeConfig } from "./runtime-config.js";
 import { createQuietOpsServer } from "./server.js";
 
-const { host, port, decisionMode } = resolveQuietOpsRuntimeConfig(process.env);
+const { host, port, decisionMode, releaseCommit } =
+  resolveQuietOpsRuntimeConfig(process.env);
 const repositoryRoot = fileURLToPath(new URL("../../../../", import.meta.url));
 const databasePath = resolve(
   repositoryRoot,
@@ -17,6 +18,7 @@ await mkdir(dirname(databasePath), { recursive: true });
 const app = await createQuietOpsServer({
   databasePath,
   decisionMode,
+  ...(releaseCommit ? { releaseCommit } : {}),
   seedDemo: true,
   logger: true,
 });
@@ -29,6 +31,7 @@ console.log(
     url: `http://${host}:${port}`,
     databasePath,
     decisionMode,
+    ...(releaseCommit ? { releaseCommit } : {}),
     externalMutations: 0,
   }),
 );

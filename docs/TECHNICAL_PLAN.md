@@ -61,6 +61,12 @@ The browser initializes fail-closed to the public state and unlocks decision inp
 
 `GET /health` returns only `{ "status": "ok" }` under the server's global `no-store` and security headers. It proves that the HTTP process can respond; readiness of SQLite, source/CI evidence, a deployment marker, or any external provider remains a separate future contract.
 
+### Stage 4C-1c served deployment identity
+
+The runtime configuration accepts `QUIETOPS_RELEASE_COMMIT` only as a full lowercase SHA and requires it before a non-loopback bind. The CLI passes that normalized value into the server; no request, model, browser, or database record can choose the served revision.
+
+When present, the server registers exactly `/.well-known/quietops-release.json` and returns the Stage 4B-2 collector schema for the fixed repository. When absent, the route falls through to 404. The global `Cache-Control: no-store` response boundary applies. This closes the local producer/consumer contract but does not provide HTTPS, target allowlisting, Strands registration, or ledger persistence.
+
 - Re-check returns the persisted receipt plus its child projection. Inbox reload and process restart reconstruct the same parent/child history from SQLite.
 - Static HTML/CSS/JavaScript keeps this slice build-light. Fastify is the only new direct locked runtime dependency; Playwright CLI is an external local verification tool rather than an application dependency.
 

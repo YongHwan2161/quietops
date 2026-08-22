@@ -3,6 +3,8 @@ import test from "node:test";
 
 import { resolveQuietOpsRuntimeConfig } from "../src/index.js";
 
+const COMMIT = "924686c12afbcd437466fd56d0ea24be8df36696";
+
 test("defaults to the local interactive loopback runtime", () => {
   assert.deepEqual(resolveQuietOpsRuntimeConfig({}), {
     host: "127.0.0.1",
@@ -17,11 +19,13 @@ test("accepts a public read-only platform binding", () => {
       QUIETOPS_HOST: "0.0.0.0",
       PORT: "8080",
       QUIETOPS_DECISION_MODE: "public-read-only",
+      QUIETOPS_RELEASE_COMMIT: COMMIT,
     }),
     {
       host: "0.0.0.0",
       port: 8080,
       decisionMode: "public-read-only",
+      releaseCommit: COMMIT,
     },
   );
 });
@@ -58,12 +62,24 @@ test("rejects non-allowlisted hosts and an interactive public bind", () => {
     );
   }
   assert.throws(
-    () => resolveQuietOpsRuntimeConfig({ QUIETOPS_HOST: "0.0.0.0" }),
+    () =>
+      resolveQuietOpsRuntimeConfig({
+        QUIETOPS_HOST: "0.0.0.0",
+        QUIETOPS_RELEASE_COMMIT: COMMIT,
+      }),
     /requires QUIETOPS_DECISION_MODE=public-read-only/,
+  );
+  assert.throws(
+    () =>
+      resolveQuietOpsRuntimeConfig({
+        QUIETOPS_HOST: "0.0.0.0",
+        QUIETOPS_DECISION_MODE: "public-read-only",
+      }),
+    /requires a full QUIETOPS_RELEASE_COMMIT/,
   );
 });
 
-test("rejects an unknown decision mode", () => {
+test("rejects an unknown decision mode or invalid release commit", () => {
   assert.throws(
     () =>
       resolveQuietOpsRuntimeConfig({
@@ -71,4 +87,18 @@ test("rejects an unknown decision mode", () => {
       }),
     /QUIETOPS_DECISION_MODE must be local-interactive or public-read-only/,
   );
+  for (const releaseCommit of [
+    "",
+    "short",
+    COMMIT.toUpperCase(),
+    `${COMMIT}0`,
+  ]) {
+    assert.throws(
+      () =>
+        resolveQuietOpsRuntimeConfig({
+          QUIETOPS_RELEASE_COMMIT: releaseCommit,
+        }),
+      /QUIETOPS_RELEASE_COMMIT must be 40 lowercase hexadecimal characters/,
+    );
+  }
 });

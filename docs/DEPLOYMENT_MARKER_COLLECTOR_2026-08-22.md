@@ -37,5 +37,6 @@ Unknown fields, a different repository, an abbreviated commit, a non-JSON respon
 
 - The example host in tests is synthetic and was not contacted.
 - No real deployment marker URL has been selected or called.
-- The collector is not registered as a Strands tool and is not persisted or displayed.
+- Stage 4C-1c now serves the matching marker contract locally when an exact commit is configured, but this does not create a real HTTPS target.
+- The collector is not registered as a Strands tool and its observation is not persisted or displayed.
 - The existing live GitHub evaluation must continue returning `Could not complete` until real deployment evidence is integrated and verified.

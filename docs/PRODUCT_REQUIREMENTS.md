@@ -102,4 +102,11 @@ Stage 4C-1b establishes the public process boundary without claiming deployment 
 - The standard `PORT` and local `QUIETOPS_PORT` accept only integers from 1 through 65535, and conflicting dual configuration fails closed.
 - `GET /health` reports process liveness with no-store caching. It does not inspect or claim SQLite, live evidence, deployment identity, or provider readiness.
 
+Stage 4C-1c establishes the served deployment-identity boundary without claiming a deployment:
+
+- `QUIETOPS_RELEASE_COMMIT` accepts only one full lowercase commit and becomes mandatory before a public bind.
+- The marker route is absent when the setting is absent; QuietOps cannot synthesize a deployment identity from local defaults or browser input.
+- When configured, `/.well-known/quietops-release.json` returns only schema version `1`, repository `YongHwan2161/quietops`, and that exact commit under no-store headers.
+- A local route response is contract proof, not proof of an HTTPS deployment, collector integration, or a `Ready` evaluation.
+
 This slice does not satisfy the full P0 boundary by itself. Pending/checking progress, stale evidence, resumable SSE, export consistency, authentication, live deployment/browser evidence integration, background execution, and a fully live browser journey remain unimplemented.

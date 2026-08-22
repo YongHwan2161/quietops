@@ -6,6 +6,7 @@ export interface QuietOpsRuntimeConfig {
   readonly host: "127.0.0.1" | "0.0.0.0";
   readonly port: number;
   readonly decisionMode: DecisionMode;
+  readonly releaseCommit?: string;
 }
 
 export function resolveQuietOpsRuntimeConfig(
@@ -14,14 +15,25 @@ export function resolveQuietOpsRuntimeConfig(
   const host = parseHost(environment.QUIETOPS_HOST);
   const port = parsePorts(environment.PORT, environment.QUIETOPS_PORT);
   const decisionMode = parseDecisionMode(environment.QUIETOPS_DECISION_MODE);
+  const releaseCommit = parseReleaseCommit(environment.QUIETOPS_RELEASE_COMMIT);
 
   if (host === "0.0.0.0" && decisionMode !== "public-read-only") {
     throw new Error(
       "QUIETOPS_HOST=0.0.0.0 requires QUIETOPS_DECISION_MODE=public-read-only.",
     );
   }
+  if (host === "0.0.0.0" && releaseCommit === undefined) {
+    throw new Error(
+      "QUIETOPS_HOST=0.0.0.0 requires a full QUIETOPS_RELEASE_COMMIT.",
+    );
+  }
 
-  return Object.freeze({ host, port, decisionMode });
+  return Object.freeze({
+    host,
+    port,
+    decisionMode,
+    ...(releaseCommit ? { releaseCommit } : {}),
+  });
 }
 
 function parseHost(value: string | undefined): QuietOpsRuntimeConfig["host"] {
@@ -69,4 +81,14 @@ function parseDecisionMode(value: string | undefined): DecisionMode {
   throw new Error(
     "QUIETOPS_DECISION_MODE must be local-interactive or public-read-only.",
   );
+}
+
+function parseReleaseCommit(value: string | undefined): string | undefined {
+  if (value === undefined) return undefined;
+  if (!/^[0-9a-f]{40}$/.test(value)) {
+    throw new Error(
+      "QUIETOPS_RELEASE_COMMIT must be 40 lowercase hexadecimal characters.",
+    );
+  }
+  return value;
 }

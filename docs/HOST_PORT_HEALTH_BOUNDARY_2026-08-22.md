@@ -35,4 +35,4 @@ This keeps the existing local workflow unchanged while preventing an unauthentic
 
 ## Remaining Stage 4C-1 work
 
-Stage 4C-1c subsequently closed the local no-store release-marker contract, and Stage 4C-1d added the external SQLite path requirement plus local restart proof. A real managed volume and deterministic production/Railway start configuration remain. Only after those gates pass should billing and resource creation be presented for explicit approval.
+Stage 4C-1c subsequently closed the local no-store release-marker contract, Stage 4C-1d added the external SQLite path requirement plus local restart proof, and Stage 4C-1e added the deterministic local production-start command. A real managed volume and Railway configuration remain. Only after those gates pass should billing and resource creation be presented for explicit approval.

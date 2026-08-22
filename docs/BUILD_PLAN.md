@@ -162,6 +162,14 @@ This plan is sequenced so that each stage can fail closed and be verified before
 - Gate: focused path tests, full repository verification, and a post-commit two-process probe against one external temporary SQLite file preserve the same evaluation IDs with zero external mutations.
 - Status: implemented and locally verified on 2026-08-22 KST; a real Railway volume, production/Railway start configuration, real HTTPS hosting, and live collector integration remain open.
 
+### Stage 4C-1e — Deterministic production-start command
+
+- Expose one root `npm start` command that delegates to the server workspace and executes only its prebuilt `dist/src/cli.js` through the existing Node SQLite version guard.
+- Keep dependency installation and compilation in the separate build phase so production startup cannot silently alter source or generated output.
+- Reuse the Stage 4C-1a through 4C-1d runtime contract unchanged; do not add platform defaults, Railway resources, or a managed-volume claim.
+- Gate: a clean build, an actual public-mode `npm start` process probe, exact health and release-marker responses, full repository verification, and zero external mutations pass.
+- Status: implemented and locally verified on 2026-08-22 KST; Railway configuration, a real Railway volume, HTTPS hosting, and live collector integration remain open.
+
 ## Stage 5 — API and user experience
 
 - Add validated API routes, resumable SSE, idempotent decisions, and consistent projections.

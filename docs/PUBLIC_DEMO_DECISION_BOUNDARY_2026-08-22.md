@@ -32,4 +32,4 @@ The server defaults to `local-interactive` for compatibility with the existing l
 
 ## Remaining Stage 4C-1 work
 
-This is not hosting readiness or deployment evidence. Stages 4C-1b through 4C-1d subsequently closed explicit host/`PORT`, process-liveness, release-marker, and external database-path contracts locally. A real managed volume and deterministic production/Railway start configuration remain. Billing review and every Railway mutation remain separately gated.
+This is not hosting readiness or deployment evidence. Stages 4C-1b through 4C-1d subsequently closed explicit host/`PORT`, process-liveness, release-marker, and external database-path contracts locally, and Stage 4C-1e added the deterministic local production-start command. A real managed volume and Railway configuration remain. Billing review and every Railway mutation remain separately gated.

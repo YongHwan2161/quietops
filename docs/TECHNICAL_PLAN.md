@@ -76,6 +76,10 @@ This check runs before `mkdir`, SQLite construction, or `listen`. It prevents th
 - Re-check returns the persisted receipt plus its child projection. Inbox reload and process restart reconstruct the same parent/child history from SQLite.
 - Static HTML/CSS/JavaScript keeps this slice build-light. Fastify is the only new direct locked runtime dependency; Playwright CLI is an external local verification tool rather than an application dependency.
 
+### Stage 4C-1e production start
+
+The root `npm start` command delegates to `@quietops/server`, whose start script executes only the prebuilt `dist/src/cli.js` through the existing Node SQLite version guard. Installation and `npm run build` remain explicit build-phase operations. Startup therefore consumes the same fail-closed runtime environment contract without compiling code, introducing Railway-specific defaults, or claiming that an external path is a managed volume.
+
 ## Trust boundaries
 
 - Tool inputs are schema validated and restricted to configured targets.

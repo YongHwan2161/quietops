@@ -25,4 +25,4 @@ The lexical boundary cannot prove that the path is backed by a managed volume or
 
 ## Remaining Stage 4C-1 work
 
-An actual managed volume and deterministic production/Railway start configuration remain. Creating the Railway volume and setting its mount path are external mutations and stay behind explicit approval.
+Stage 4C-1e subsequently added the deterministic local production-start command. An actual managed volume and Railway configuration remain. Creating the Railway volume and setting its mount path are external mutations and stay behind explicit approval.

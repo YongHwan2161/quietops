@@ -34,18 +34,19 @@ Small teams repeatedly reconstruct release readiness from commits, CI checks, de
 - [Stage 4C-1b host, port, and health boundary](docs/HOST_PORT_HEALTH_BOUNDARY_2026-08-22.md)
 - [Stage 4C-1c release-marker route boundary](docs/RELEASE_MARKER_ROUTE_2026-08-22.md)
 - [Stage 4C-1d persistent database-path boundary](docs/PERSISTENT_DB_PATH_BOUNDARY_2026-08-22.md)
+- [Stage 4C-1e production-start command boundary](docs/PRODUCTION_START_CONTRACT_2026-08-22.md)
 - [Problem-selection and competition-fit rationale](docs/PROBLEM_SELECTION_RATIONALE_2026-08-22.md)
 - [Submission plan](docs/SUBMISSION_PLAN.md)
 - [Disclosures and claim boundaries](docs/DISCLOSURES.md)
 
 ## Current status
 
-- Active increment: Stage 4C-1d — an explicit external SQLite path for public binds plus restart-persistence verification; the broader Stage 1, Stage 2, Stage 4, and Stage 5 plans remain incomplete
+- Active increment: Stage 4C-1e — a deterministic root production-start command that executes only prebuilt server output; the broader Stage 1, Stage 2, Stage 4, and Stage 5 plans remain incomplete
 - Implementation: candidate identity, shared vocabulary, bounded Ready/mismatch Strands paths, an optional Bedrock model path for mismatch, a separate live GitHub Strands path, an append-only SQLite ledger, idempotent human decisions, re-check lineage, inbox/detail/timeline projections, and a locally verified deployment-marker collector
 - Browser and API: the guarded Fastify server defaults to loopback and exposes inbox, detail, decision, liveness, and optionally exact-commit release-marker endpoints. `local-interactive` mode preserves Reject/Re-check and lineage; non-loopback binding requires `public-read-only`, a full release commit, and an external absolute database path, while the public browser removes decision controls and valid decision writes receive a stable `403` response.
 - Live GitHub validation: two bounded Strands tools share one public source/CI collection, preserve exact provider receipts in SQLite, and return `Could not complete` with no human action because deployment evidence is missing; the browser still uses fixture scenarios
 - Deployment-marker validation: a collector created with one trusted HTTPS `/.well-known/quietops-release.json` URL performs one bounded unauthenticated GET and accepts only an exact repository/full-commit schema; no real URL has been selected or called
-- Hosting target: Railway is selected as `PREPARE_ONLY`; the public database-path contract is closed locally, but an actual persistent volume and production-start configuration remain, and no Railway resource has been created
+- Hosting target: Railway is selected as `PREPARE_ONLY`; the public runtime and root production-start command are closed locally, but Railway configuration and an actual persistent volume remain, and no Railway resource has been created
 - Live AWS/Bedrock validation: not performed for this repository
 - Deployment: not performed
 - Devpost project submission: not performed from this repository
@@ -71,6 +72,8 @@ npm run demo:web
 Set `QUIETOPS_DECISION_MODE=public-read-only` to exercise the fail-closed shared-demo view locally. The inbox and evidence remain visible, but the browser exposes no Reject/Re-check controls and the API returns `PUBLIC_DEMO_READ_ONLY` for otherwise valid decision writes. Omitting the setting keeps the existing `local-interactive` judge workflow.
 
 The CLI defaults to `127.0.0.1:4173` and the repository-local `.quietops/quietops.sqlite`. A platform-style public bind additionally requires `QUIETOPS_HOST=0.0.0.0`, `PORT=<1-65535>`, `QUIETOPS_DECISION_MODE=public-read-only`, `QUIETOPS_RELEASE_COMMIT=<40 lowercase hex>`, and an absolute `QUIETOPS_DB_PATH` outside the application repository, such as `/data/quietops.sqlite`. `QUIETOPS_PORT` remains a local alias; if both port variables are set, their parsed values must match. `GET /health` is a no-store process-liveness check only. When a release commit is configured, `GET /.well-known/quietops-release.json` returns the strict repository/commit marker consumed by the bounded deployment adapter.
+
+Production-style execution is an explicit two-command contract: run `npm run build` during the build phase, then run `npm start` to execute only the prebuilt `@quietops/server` CLI. `npm start` does not install dependencies, compile TypeScript, migrate storage, invent environment defaults for a public bind, or create a hosting resource.
 
 The judge demo runs Ready and deployed-revision mismatch scenarios through the actual Strands `Agent` loop. Each scenario calls the same three fixture-backed read-only tools exactly once. It verifies that Ready requires no human decision, while a mismatch exposes only `Reject` and `Re-check requested`; both record `externalMutations: 0`. The command exits non-zero if these invariants fail. Fixture execution is not live provider validation.
 

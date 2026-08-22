@@ -3,6 +3,7 @@ const state = {
   selectedId: null,
   selected: null,
   busy: false,
+  decisionMode: "public-read-only",
 };
 
 const inbox = document.querySelector("#inbox");
@@ -11,6 +12,7 @@ const refreshButton = document.querySelector("#refresh-button");
 const attentionCount = document.querySelector("#attention-count");
 const readyCount = document.querySelector("#ready-count");
 const toast = document.querySelector("#toast");
+const runtimeMode = document.querySelector("#runtime-mode");
 
 refreshButton.addEventListener("click", () => void loadInbox(state.selectedId));
 
@@ -21,6 +23,11 @@ async function loadInbox(preferredId) {
   try {
     const payload = await requestJson("/api/inbox");
     state.items = payload.items;
+    state.decisionMode =
+      payload.capabilities?.decisionMode === "local-interactive"
+        ? "local-interactive"
+        : "public-read-only";
+    renderRuntimeMode();
     const preferredExists = state.items.some(
       (item) => item.evaluationId === preferredId,
     );
@@ -61,6 +68,13 @@ function renderSummary() {
   readyCount.textContent = String(
     state.items.filter((item) => item.outcome === "Ready").length,
   );
+}
+
+function renderRuntimeMode() {
+  runtimeMode.textContent =
+    state.decisionMode === "local-interactive"
+      ? "Local evidence mode · interactive"
+      : "Public evidence demo · decisions locked";
 }
 
 function renderInbox() {
@@ -229,6 +243,26 @@ function renderEvidence(evaluation) {
 function renderDecisionCard(evaluation) {
   const section = element("section", "section");
   const card = element("div", "decision-card");
+
+  if (state.decisionMode === "public-read-only") {
+    card.append(
+      element("p", "eyebrow", "PUBLIC DEMO · READ ONLY"),
+      element("h3", "", "A human decision is required"),
+      element(
+        "p",
+        "",
+        "QuietOps found deployment drift, but this shared public view cannot change the preserved judge record.",
+      ),
+      element(
+        "div",
+        "demo-boundary",
+        "Reject and Re-check remain available in the local interactive workflow.",
+      ),
+    );
+    section.append(card);
+    return section;
+  }
+
   card.append(
     element("p", "eyebrow", "HUMAN CHECKPOINT"),
     element("h3", "", "The safe path needs your call"),
@@ -353,6 +387,10 @@ function renderTelemetry(evaluation) {
 }
 
 async function submitDecision(evaluationId, decision, note) {
+  if (state.decisionMode !== "local-interactive") {
+    showToast("This public demo does not accept decisions.", true);
+    return;
+  }
   if (state.busy) return;
   setBusy(true);
   try {

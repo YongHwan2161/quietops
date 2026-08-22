@@ -69,4 +69,51 @@ Stage 4A-2 adds the first judge-visible product path:
 - The initial view places an unresolved mismatch above the quiet Ready history and shows expected versus observed evidence beside zero-mutation tool receipts.
 - Reject and Re-check are real API commands with required idempotency keys. Re-check opens a fresh child evaluation while both directions of the persisted lineage remain navigable after refresh or restart.
 
-This slice does not satisfy the full P0 boundary by itself. Pending/checking progress, stale and missing evidence paths, resumable SSE, export consistency, authentication, browser evidence collection, and live-provider collection remain unimplemented.
+Stage 4B-0 adds the first live-provider seam without overstating product completion:
+
+- A fixed-target, read-only GitHub adapter collects the exact public `main` revision and completed required `Verify` workflow with source receipts.
+- Invalid, missing, non-allowlisted, oversized, redirected, rate-limited, or timed-out evidence fails closed.
+- The adapter remains separate from the Strands runner, application service, ledger, and browser until the next integration increment; current browser evaluations therefore remain explicitly fixture-backed.
+
+Stage 4B-1 closes the agent/application seam for source and CI only:
+
+- Two bounded Strands tools share one live GitHub collection and persist the exact provider receipts with the observations and policy result.
+- Missing deployment evidence produces `Could not complete`, no attention request, and no allowed human decision.
+- The file-backed integration test proves the source/CI receipts survive ledger reopen; the live command separately proves the public GitHub → Strands → SQLite path.
+- The browser remains fixture-backed, so this increment is not a fully live Ready or mismatch journey.
+
+Stage 4B-2 establishes the deployment-observation boundary without claiming a deployment:
+
+- Trusted application code constructs a collector around one exact HTTPS marker URL; neither the model nor a tool invocation can redirect it to another target.
+- The marker must identify this repository and a full commit under a strict versioned JSON schema.
+- Missing, malformed, oversized, redirected, non-HTTPS, credential-bearing, queried, fragmented, or timed-out reads fail closed.
+- The collector is not yet a Strands tool and no real deployment URL has been selected, so it cannot change a live evaluation outcome.
+
+Stage 4C-1a establishes the public-demo write boundary without claiming a hosted demo:
+
+- `local-interactive` preserves the existing credential-free judge workflow and bounded Reject/Re-check decisions.
+- `public-read-only` preserves inbox, evidence, lineage, and tool receipts but exposes no decision inputs.
+- The server rejects an otherwise valid public decision request with `403 PUBLIC_DEMO_READ_ONLY`; the evaluation, timeline, and inbox identity remain unchanged.
+- Missing or unrecognized browser capability data fails closed to the public read-only presentation.
+
+Stage 4C-1b establishes the public process boundary without claiming deployment readiness:
+
+- The local default remains `127.0.0.1:4173`; a non-loopback bind accepts only `0.0.0.0` and requires `public-read-only`.
+- The standard `PORT` and local `QUIETOPS_PORT` accept only integers from 1 through 65535, and conflicting dual configuration fails closed.
+- `GET /health` reports process liveness with no-store caching. It does not inspect or claim SQLite, live evidence, deployment identity, or provider readiness.
+
+Stage 4C-1c establishes the served deployment-identity boundary without claiming a deployment:
+
+- `QUIETOPS_RELEASE_COMMIT` accepts only one full lowercase commit and becomes mandatory before a public bind.
+- The marker route is absent when the setting is absent; QuietOps cannot synthesize a deployment identity from local defaults or browser input.
+- When configured, `/.well-known/quietops-release.json` returns only schema version `1`, repository `YongHwan2161/quietops`, and that exact commit under no-store headers.
+- A local route response is contract proof, not proof of an HTTPS deployment, collector integration, or a `Ready` evaluation.
+
+Stage 4C-1d establishes the persistent-path boundary without claiming a managed volume:
+
+- The loopback workflow retains its repository-local default and relative-path compatibility.
+- A public bind requires an explicit absolute SQLite path whose lexical location is outside the application repository.
+- Missing, relative, repository-local, empty, or NUL-containing public paths fail before directory creation, database construction, or network listening.
+- Reopening the same external SQLite file must preserve evaluation identities; this proves local process persistence only, not Railway volume durability.
+
+This slice does not satisfy the full P0 boundary by itself. Pending/checking progress, stale evidence, resumable SSE, export consistency, authentication, live deployment/browser evidence integration, background execution, and a fully live browser journey remain unimplemented.

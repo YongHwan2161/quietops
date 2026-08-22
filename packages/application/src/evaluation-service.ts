@@ -3,11 +3,15 @@ import { randomUUID } from "node:crypto";
 import {
   EVIDENCE_KINDS,
   EVIDENCE_TOOL_NAMES,
+  LIVE_GITHUB_EVIDENCE_TOOL_NAMES,
   MISMATCH_FIXTURE,
   READY_FIXTURE,
+  runLiveGitHubSourceCiSlice,
   runReleaseSlice,
   type EvidenceKind,
   type EvidenceObservation,
+  type FixtureReleaseScenario,
+  type LiveGitHubSourceCiSliceResult,
   type ReleaseFixture,
   type ReleaseScenario,
   type ReleaseSliceResult,
@@ -33,6 +37,8 @@ import {
 const DEMO_REPOSITORY = "YongHwan2161/quietops";
 const DEMO_BRANCH = "main";
 const DEMO_DEPLOYMENT_URL = "https://quietops.example.invalid/releases/demo";
+const LIVE_GITHUB_INCOMPLETE_DEPLOYMENT_URL =
+  "https://quietops.example.invalid/releases/live-github-source-ci";
 
 const EVENT_TYPES = Object.freeze({
   started: "evaluation-started",
@@ -110,6 +116,7 @@ export interface EvaluationServiceOptions {
   readonly runScenario?: (
     fixture: ReleaseFixture,
   ) => Promise<ReleaseSliceResult>;
+  readonly runLiveGitHubSourceCi?: () => Promise<LiveGitHubSourceCiSliceResult>;
 }
 
 export class EvaluationNotFoundError extends Error {
@@ -157,6 +164,7 @@ export class EvaluationService {
   readonly #runScenario: (
     fixture: ReleaseFixture,
   ) => Promise<ReleaseSliceResult>;
+  readonly #runLiveGitHubSourceCi: () => Promise<LiveGitHubSourceCiSliceResult>;
 
   constructor(
     ledger: SQLiteEvaluationLedger,
@@ -168,10 +176,12 @@ export class EvaluationService {
       options.idFactory ?? ((kind) => `${kind}_${randomUUID()}`);
     this.#runScenario =
       options.runScenario ?? ((fixture) => runReleaseSlice(fixture));
+    this.#runLiveGitHubSourceCi =
+      options.runLiveGitHubSourceCi ?? runLiveGitHubSourceCiSlice;
   }
 
   async startDemoEvaluation(
-    scenario: ReleaseScenario,
+    scenario: FixtureReleaseScenario,
   ): Promise<EvaluationDetailProjection> {
     const [evaluation] = await this.startDemoEvaluations([scenario]);
     if (!evaluation) {
@@ -181,7 +191,7 @@ export class EvaluationService {
   }
 
   async startDemoEvaluations(
-    scenarios: readonly ReleaseScenario[],
+    scenarios: readonly FixtureReleaseScenario[],
   ): Promise<readonly EvaluationDetailProjection[]> {
     if (scenarios.length === 0) {
       throw new Error("At least one demo evaluation scenario is required.");
@@ -189,7 +199,7 @@ export class EvaluationService {
 
     const created = [];
     for (const scenario of scenarios) {
-      created.push(await this.#buildEvaluation(scenario, null));
+      created.push(await this.#buildDemoEvaluation(scenario, null));
     }
     this.#ledger.commit({
       evaluations: created.map((item) => item.evaluation),
@@ -198,6 +208,15 @@ export class EvaluationService {
     return Object.freeze(
       created.map((item) => this.getEvaluation(item.evaluation.evaluationId)),
     );
+  }
+
+  async startLiveGitHubSourceCiEvaluation(): Promise<EvaluationDetailProjection> {
+    const created = await this.#buildLiveGitHubSourceCiEvaluation();
+    this.#ledger.commit({
+      evaluations: [created.evaluation],
+      events: created.events,
+    });
+    return this.getEvaluation(created.evaluation.evaluationId);
   }
 
   async recordDecision(
@@ -232,7 +251,10 @@ export class EvaluationService {
     const decisionId = this.#idFactory("decision");
     const child =
       normalized.decision === "Re-check requested"
-        ? await this.#buildEvaluation(current.scenario, normalized.evaluationId)
+        ? await this.#buildDemoEvaluation(
+            "deployed-sha-mismatch",
+            normalized.evaluationId,
+          )
         : undefined;
     const childEvaluationId = child?.evaluation.evaluationId ?? null;
     const response = Object.freeze({
@@ -315,8 +337,8 @@ export class EvaluationService {
     return value.toISOString();
   }
 
-  async #buildEvaluation(
-    scenario: ReleaseScenario,
+  async #buildDemoEvaluation(
+    scenario: FixtureReleaseScenario,
     parentEvaluationId: string | null,
   ): Promise<{
     readonly evaluation: NewEvaluationRecord;
@@ -325,10 +347,39 @@ export class EvaluationService {
     const fixture = fixtureForScenario(scenario);
     const result = await this.#runScenario(fixture);
     requireResultMatchesScenario(result, scenario);
+    return this.#buildEvaluationEvents(
+      scenario,
+      demoCandidate(fixture.expectedCommit),
+      result,
+      parentEvaluationId,
+    );
+  }
 
+  async #buildLiveGitHubSourceCiEvaluation(): Promise<{
+    readonly evaluation: NewEvaluationRecord;
+    readonly events: readonly NewLedgerEvent[];
+  }> {
+    const result = await this.#runLiveGitHubSourceCi();
+    requireResultMatchesScenario(result, "live-github-source-ci");
+    return this.#buildEvaluationEvents(
+      "live-github-source-ci",
+      liveGitHubCandidate(result),
+      result,
+      null,
+    );
+  }
+
+  #buildEvaluationEvents(
+    scenario: ReleaseScenario,
+    candidate: CandidateIdentity,
+    result: ReleaseSliceResult,
+    parentEvaluationId: string | null,
+  ): {
+    readonly evaluation: NewEvaluationRecord;
+    readonly events: readonly NewLedgerEvent[];
+  } {
     const evaluationId = this.#idFactory("evaluation");
     const createdAt = this.#now();
-    const candidate = demoCandidate(fixture.expectedCommit);
     const evaluation: NewEvaluationRecord = Object.freeze({
       evaluationId,
       scenario,
@@ -371,13 +422,7 @@ export class EvaluationService {
           agentRuntimeVersion: result.agentRuntimeVersion,
           modelMode: result.modelMode,
           toolCalls: Object.freeze(
-            result.toolCalls.map((call) =>
-              Object.freeze({
-                toolName: call.toolName,
-                evidenceId: call.evidenceId,
-                externalMutations: call.externalMutations,
-              }),
-            ),
+            result.toolCalls.map((call) => toolCallJson(call)),
           ),
           externalMutations: result.externalMutations,
         }),
@@ -400,13 +445,25 @@ export class EvaluationService {
   }
 }
 
-function fixtureForScenario(scenario: ReleaseScenario): ReleaseFixture {
+function fixtureForScenario(scenario: FixtureReleaseScenario): ReleaseFixture {
   switch (scenario) {
     case "ready":
       return READY_FIXTURE;
     case "deployed-sha-mismatch":
       return MISMATCH_FIXTURE;
   }
+}
+
+function liveGitHubCandidate(
+  result: LiveGitHubSourceCiSliceResult,
+): CandidateIdentity {
+  return parseCandidateIdentity({
+    schemaVersion: "1",
+    repository: result.candidate.repository,
+    branch: result.candidate.branch,
+    commit: result.candidate.commit,
+    deploymentUrl: LIVE_GITHUB_INCOMPLETE_DEPLOYMENT_URL,
+  });
 }
 
 function demoCandidate(commit: string): CandidateIdentity {
@@ -429,20 +486,50 @@ function candidateJson(candidate: CandidateIdentity): JsonObject {
   });
 }
 
+function toolCallJson(call: ToolCallReceipt): JsonObject {
+  return Object.freeze({
+    toolName: call.toolName,
+    evidenceId: call.evidenceId,
+    ...(call.provider ? { provider: call.provider } : {}),
+    ...(call.providerRecordId
+      ? { providerRecordId: call.providerRecordId }
+      : {}),
+    ...(call.sourceUrl ? { sourceUrl: call.sourceUrl } : {}),
+    ...(call.fetchedAt ? { fetchedAt: call.fetchedAt } : {}),
+    externalMutations: call.externalMutations,
+  });
+}
+
+function evidenceKindsForScenario(
+  scenario: ReleaseScenario,
+): readonly EvidenceKind[] {
+  return scenario === "live-github-source-ci"
+    ? Object.freeze([EVIDENCE_KINDS[0], EVIDENCE_KINDS[1]])
+    : EVIDENCE_KINDS;
+}
+
+function toolNamesForScenario(scenario: ReleaseScenario): readonly string[] {
+  return scenario === "live-github-source-ci"
+    ? LIVE_GITHUB_EVIDENCE_TOOL_NAMES
+    : EVIDENCE_TOOL_NAMES;
+}
+
 function requireResultMatchesScenario(
   result: ReleaseSliceResult,
   scenario: ReleaseScenario,
 ): void {
+  const expectedEvidenceKinds = evidenceKindsForScenario(scenario);
+  const expectedToolNames = toolNamesForScenario(scenario);
   if (result.scenario !== scenario) {
     throw new StoredEvaluationInvariantError(
       `runner returned ${result.scenario} for ${scenario}`,
     );
   }
   if (
-    result.observations.length !== EVIDENCE_KINDS.length ||
+    result.observations.length !== expectedEvidenceKinds.length ||
     !result.observations.every(
       (observation, index) =>
-        observation.kind === EVIDENCE_KINDS[index] &&
+        observation.kind === expectedEvidenceKinds[index] &&
         observation.status === "Verified",
     )
   ) {
@@ -456,13 +543,15 @@ function requireResultMatchesScenario(
         result.observations.map((observation) => observation.evidenceId),
       ) ||
     JSON.stringify(result.toolCalls.map((call) => call.toolName)) !==
-      JSON.stringify(EVIDENCE_TOOL_NAMES) ||
+      JSON.stringify(expectedToolNames) ||
     JSON.stringify(result.toolCalls.map((call) => call.evidenceId)) !==
       JSON.stringify(
         result.observations.map((observation) => observation.evidenceId),
       ) ||
     result.externalMutations !== 0 ||
-    result.toolCalls.some((call) => call.externalMutations !== 0)
+    result.toolCalls.some((call) => call.externalMutations !== 0) ||
+    (scenario === "live-github-source-ci" &&
+      !result.toolCalls.every(isBoundLiveGitHubReceipt))
   ) {
     throw new StoredEvaluationInvariantError(
       `runner receipts do not match evidence for ${scenario}`,
@@ -475,7 +564,10 @@ function requireResultMatchesScenario(
     (scenario === "deployed-sha-mismatch" &&
       (result.policy.outcome !== "Needs decision" ||
         JSON.stringify(result.policy.allowedHumanDecisions) !==
-          JSON.stringify(["Reject", "Re-check requested"])))
+          JSON.stringify(["Reject", "Re-check requested"]))) ||
+    (scenario === "live-github-source-ci" &&
+      (result.policy.outcome !== "Could not complete" ||
+        result.policy.allowedHumanDecisions.length !== 0))
   ) {
     throw new StoredEvaluationInvariantError(
       `runner policy does not match ${scenario}`,
@@ -489,6 +581,8 @@ function projectEvaluation(
 ): EvaluationDetailProjection {
   const scenario = parseScenario(record.scenario);
   const candidate = parseCandidateIdentity(record.candidate);
+  const expectedEvidenceKinds = evidenceKindsForScenario(scenario);
+  const expectedToolNames = toolNamesForScenario(scenario);
   const timeline = Object.freeze(storedEvents.map(projectTimelineEntry));
   timeline.forEach((event, index) => {
     if (event.sequence !== index + 1) {
@@ -502,14 +596,14 @@ function projectEvaluation(
       parseEvidence(event.payload),
     ),
   );
-  if (evidence.length !== EVIDENCE_KINDS.length) {
+  if (evidence.length !== expectedEvidenceKinds.length) {
     throw new StoredEvaluationInvariantError(
-      `evaluation ${record.evaluationId} must have exactly three evidence events`,
+      `evaluation ${record.evaluationId} must have exactly ${expectedEvidenceKinds.length} evidence events`,
     );
   }
   if (
     !evidence.every(
-      (observation, index) => observation.kind === EVIDENCE_KINDS[index],
+      (observation, index) => observation.kind === expectedEvidenceKinds[index],
     )
   ) {
     throw new StoredEvaluationInvariantError(
@@ -555,7 +649,7 @@ function projectEvaluation(
   const toolCalls = parseToolCalls(completed.payload);
   if (
     JSON.stringify(toolCalls.map((call) => call.toolName)) !==
-      JSON.stringify(EVIDENCE_TOOL_NAMES) ||
+      JSON.stringify(expectedToolNames) ||
     JSON.stringify(toolCalls.map((call) => call.evidenceId)) !==
       JSON.stringify(evidence.map((observation) => observation.evidenceId))
   ) {
@@ -576,7 +670,12 @@ function projectEvaluation(
     (scenario === "deployed-sha-mismatch" &&
       (outcome !== "Needs decision" ||
         JSON.stringify(allowedHumanDecisions) !==
-          JSON.stringify(["Reject", "Re-check requested"])))
+          JSON.stringify(["Reject", "Re-check requested"]))) ||
+    (scenario === "live-github-source-ci" &&
+      (outcome !== "Could not complete" ||
+        allowedHumanDecisions.length !== 0 ||
+        candidate.commit !== evidence[0]?.value ||
+        !toolCalls.every(isBoundLiveGitHubReceipt)))
   ) {
     throw new StoredEvaluationInvariantError(
       `evaluation ${record.evaluationId} outcome does not match its demo scenario`,
@@ -646,9 +745,22 @@ function parseToolCalls(payload: JsonObject): readonly ToolCallReceipt[] {
   return Object.freeze(
     value.map((item) => {
       const record = readObject(item, "tool call");
+      const provider = readOptionalString(record, "provider");
+      if (provider !== undefined && provider !== "github") {
+        throw new StoredEvaluationInvariantError(
+          `unknown tool receipt provider ${provider}`,
+        );
+      }
+      const providerRecordId = readOptionalString(record, "providerRecordId");
+      const sourceUrl = readOptionalString(record, "sourceUrl");
+      const fetchedAt = readOptionalString(record, "fetchedAt");
       return Object.freeze({
         toolName: readString(record, "toolName") as ToolCallReceipt["toolName"],
         evidenceId: readString(record, "evidenceId"),
+        ...(provider ? { provider } : {}),
+        ...(providerRecordId ? { providerRecordId } : {}),
+        ...(sourceUrl ? { sourceUrl } : {}),
+        ...(fetchedAt ? { fetchedAt } : {}),
         externalMutations: readZero(record, "externalMutations"),
       });
     }),
@@ -669,7 +781,12 @@ function parseDecision(
 }
 
 function parseScenario(value: string): ReleaseScenario {
-  if (value === "ready" || value === "deployed-sha-mismatch") return value;
+  if (
+    value === "ready" ||
+    value === "deployed-sha-mismatch" ||
+    value === "live-github-source-ci"
+  )
+    return value;
   throw new StoredEvaluationInvariantError(`unknown scenario ${value}`);
 }
 
@@ -784,6 +901,36 @@ function readNullableString(record: JsonObject, key: string): string | null {
     throw new StoredEvaluationInvariantError(`${key} must be a string or null`);
   }
   return value;
+}
+
+function readOptionalString(
+  record: JsonObject,
+  key: string,
+): string | undefined {
+  const value = record[key];
+  if (value === undefined) return undefined;
+  if (typeof value !== "string") {
+    throw new StoredEvaluationInvariantError(`${key} must be a string`);
+  }
+  return value;
+}
+
+function isBoundLiveGitHubReceipt(call: ToolCallReceipt): boolean {
+  if (
+    call.provider !== "github" ||
+    !call.providerRecordId ||
+    !call.sourceUrl ||
+    !call.fetchedAt ||
+    Number.isNaN(Date.parse(call.fetchedAt)) ||
+    call.externalMutations !== 0
+  ) {
+    return false;
+  }
+  try {
+    return new URL(call.sourceUrl).origin === "https://github.com";
+  } catch {
+    return false;
+  }
 }
 
 function readStringArray(record: JsonObject, key: string): readonly string[] {

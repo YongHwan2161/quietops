@@ -94,6 +94,90 @@ This plan is sequenced so that each stage can fail closed and be verified before
 - Gate: HTTP contract, invalid-input, decision replay, restart-persistence, browser syntax, and an actual Playwright desktop journey pass with zero console errors and zero external mutations.
 - Status: implemented and locally verified; SSE, background scheduling, browser evidence collection, authentication, export, live providers, deployment, and broader Stage 5 UX remain open.
 
+### Stage 4B-0 — Bounded GitHub source/CI evidence adapter
+
+- Add a separate adapter package that reads the exact public source revision and completed required GitHub Actions workflow for one fixed repository, branch, and workflow allowlist.
+- Use only bounded unauthenticated `GET` requests to the fixed GitHub API origin; reject redirects, non-allowlisted targets, invalid or oversized payloads, missing required workflows, rate limits, and timeouts.
+- Preserve the full commit, evidence URL, workflow run ID and URL, completion time, fetch time, and hard-zero external-mutation receipt.
+- Keep the credential-free fixture path unchanged and do not represent the adapter as a completed live evaluation until it is registered in the Strands tools, persisted, and shown through the browser product path.
+- Gate: focused success/failure tests, full repository verification, and a direct read-only observation of the current QuietOps `main` commit and `Verify` run pass.
+- Status: implemented and verified locally plus one live public read on 2026-08-22 KST; Strands registration, ledger/UI integration, deployment evidence, browser evidence collection, background execution, and live AWS remain open.
+
+### Stage 4B-1 — Live GitHub evidence through Strands and ledger
+
+- Register exactly two live read-only tools for source revision and required CI status, backed by one shared GitHub collection so the same commit/run snapshot is reused.
+- Give the live invocation a two-call allowlist and preserve provider, provider record ID, source URL, fetch time, evidence ID, and zero-mutation receipt.
+- Persist the live source/CI observations, tool receipts, deterministic policy, and completion event through the existing append-only application/SQLite path.
+- Represent absent deployment evidence as `Could not complete` with no human action; never synthesize a deployment observation or allow a partial evaluation to become `Ready`.
+- Gate: focused agent and file-reopen ledger tests, full repository verification, and an actual public GitHub → Strands → policy → SQLite command pass.
+- Status: implemented and directly verified on 2026-08-22 KST; deployment collection, browser integration, background execution, live Bedrock/AgentCore, and a fully live Ready/mismatch contrast remain open.
+
+### Stage 4B-2 — Construction-bound deployment marker collector
+
+- Create the read-only collector with one trusted deployment target; agent/model input cannot select or replace its URL at invocation time.
+- Accept only HTTPS on the default port at `/.well-known/quietops-release.json`, without credentials, query, or fragment, and bind the marker to `YongHwan2161/quietops` plus one full lowercase commit.
+- Perform one unauthenticated `GET`, reject redirects, enforce a whole-response timeout and 64-kilobyte body limit, and map missing, invalid, oversized, or interrupted evidence to stable fail-closed errors.
+- Preserve the exact marker URL, fetch time, evidence ID, full deployed commit, and `externalMutations: 0` in the returned observation.
+- Gate: success, unsafe-target, malformed-schema, content-type, missing, oversized, and timeout tests plus full repository verification pass.
+- Status: implemented and locally verified on 2026-08-22 KST; no real deployment target has been selected or called, and Strands/application/ledger/browser integration remains open.
+
+### Stage 4C-0 — Hosting target selection and external gate
+
+- Compare current platform constraints against the actual monorepo, Node, SQLite, networking, persistence, and public-write requirements.
+- Select Railway as `PREPARE_ONLY`: it is the shortest current path for a shared npm monorepo plus persistent SQLite volume, while AWS App Runner is closed to new customers and stateless, and Lightsail Container Service adds container/cost lifecycle work.
+- Record the current local CLI state and the exact public/billable mutations that remain unauthorized.
+- Refuse public deployment of the current loopback-only server because its unauthenticated decision route would let arbitrary visitors change shared judge state.
+- Gate: official platform documentation, local runtime inspection, authenticated read-only CLI status, and an explicit no-resource/no-deployment boundary are recorded.
+- Status: decision complete on 2026-08-22 KST; Railway project/service/volume/domain creation, repository connection, billing change, and deployment remain HOLD. Stage 4C-1 hosting-readiness code is next.
+
+### Stage 4C-1a — Public-demo decision boundary
+
+- Add an explicit `local-interactive` / `public-read-only` server capability; default unknown or absent browser capability data to the read-only state.
+- Preserve inbox and evidence visibility in public mode while removing decision inputs and rejecting otherwise valid decision writes with a stable `403 PUBLIC_DEMO_READ_ONLY` response.
+- Keep the existing local judge workflow interactive and prove that a public request cannot append a decision or timeline event.
+- Gate: focused HTTP tests, TypeScript and browser syntax checks, an actual headed-browser refresh with no decision controls, zero browser console errors or warnings, full repository verification, and zero external mutations pass.
+- Status: implemented and locally verified on 2026-08-22 KST; host/`PORT`, health, release marker, persistent-volume path, production start configuration, and deployment remain open.
+
+### Stage 4C-1b — Host, platform port, and liveness boundary
+
+- Parse only `127.0.0.1` or `0.0.0.0`; require `public-read-only` whenever the process binds beyond loopback.
+- Accept the platform-standard `PORT` and existing `QUIETOPS_PORT` in the range 1-65535; fail closed when both resolve to different ports.
+- Add credential-free `GET /health` with a minimal `{ "status": "ok" }` body and `Cache-Control: no-store`; treat it as process liveness, not ledger or provider readiness.
+- Gate: runtime-configuration edge tests, focused server verification, and an actual `0.0.0.0` + `PORT` + public-read-only process probe pass with zero external mutations.
+- Status: implemented and locally verified on 2026-08-22 KST; release marker, persistent-volume path, production/Railway start configuration, and deployment remain open.
+
+### Stage 4C-1c — Exact-commit release-marker route
+
+- Accept an optional `QUIETOPS_RELEASE_COMMIT` only when it is exactly 40 lowercase hexadecimal characters; require it before any `0.0.0.0` bind.
+- Serve `/.well-known/quietops-release.json` only when configured, using the Stage 4B-2 strict schema for `YongHwan2161/quietops` and the server's global no-store headers.
+- Leave the route absent when no commit is configured so a local default cannot fabricate deployment identity.
+- Gate: runtime and server tests reject missing/invalid public marker configuration, exact JSON and headers pass, full repository verification passes, and a post-commit process probe returns the running checkout's exact full HEAD.
+- Status: implemented and locally verified on 2026-08-22 KST; persistent-volume path, production/Railway start configuration, real HTTPS hosting, and live collector integration remain open.
+
+### Stage 4C-1d — Persistent database-path boundary
+
+- Resolve the local default and configured SQLite path in one runtime contract before directory creation or server construction.
+- Require an explicit absolute `QUIETOPS_DB_PATH` outside the application repository for any `0.0.0.0` bind; reject missing, relative, repository-local, empty, or NUL-containing public paths.
+- Preserve the existing local relative-path workflow while preventing it from being reused as apparent production persistence.
+- Gate: focused path tests, full repository verification, and a post-commit two-process probe against one external temporary SQLite file preserve the same evaluation IDs with zero external mutations.
+- Status: implemented and locally verified on 2026-08-22 KST; a real Railway volume, production/Railway start configuration, real HTTPS hosting, and live collector integration remain open.
+
+### Stage 4C-1e — Deterministic production-start command
+
+- Expose one root `npm start` command that delegates to the server workspace and executes only its prebuilt `dist/src/cli.js` through the existing Node SQLite version guard.
+- Keep dependency installation and compilation in the separate build phase so production startup cannot silently alter source or generated output.
+- Reuse the Stage 4C-1a through 4C-1d runtime contract unchanged; do not add platform defaults, Railway resources, or a managed-volume claim.
+- Gate: a clean build, an actual public-mode `npm start` process probe, exact health and release-marker responses, full repository verification, and zero external mutations pass.
+- Status: implemented and locally verified on 2026-08-22 KST; Railway configuration, a real Railway volume, HTTPS hosting, and live collector integration remain open.
+
+### Stage 4C-1f — Railway configuration boundary
+
+- Add one root `railway.json` using Railway's current official schema with explicit Railpack, `npm run build`, `npm start`, `/health`, and a bounded health-check timeout.
+- Keep variables, volume mount, domain, region, scaling, restart policy, service creation, and deployment outside the file so they remain explicit external decisions.
+- Extend repository formatting checks to parse and format the configuration without adding a runtime or development dependency.
+- Gate: official JSON Schema validation, exact contract inspection, build, actual public-mode start/health/marker probe, full repository verification, and zero external mutations pass.
+- Status: implemented and locally verified on 2026-08-22 KST; required service variables, a real Railway volume, HTTPS hosting, and live collector integration remain open.
+
 ## Stage 5 — API and user experience
 
 - Add validated API routes, resumable SSE, idempotent decisions, and consistent projections.

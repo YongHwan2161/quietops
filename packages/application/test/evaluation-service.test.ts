@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 
-import { runReadySlice } from "@quietops/agent";
+import { runLiveGitHubSourceCiSlice, runReadySlice } from "@quietops/agent";
+import type { GitHubEvidenceBundle } from "@quietops/adapters";
 import { SQLiteEvaluationLedger } from "@quietops/storage";
 
 import {
@@ -181,10 +185,108 @@ test("commits a demo scenario batch only after every agent result verifies", asy
   }
 });
 
+test("persists live GitHub Strands receipts while refusing Ready without deployment evidence", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "quietops-live-github-"));
+  const databasePath = join(directory, "evidence.sqlite");
+  let evaluationId = "";
+  try {
+    const ledger = new SQLiteEvaluationLedger(databasePath);
+    try {
+      const service = new EvaluationService(ledger, {
+        clock: () => new Date("2026-08-21T15:30:00.000Z"),
+        idFactory: deterministicIdFactory(),
+        runLiveGitHubSourceCi: () =>
+          runLiveGitHubSourceCiSlice({
+            collector: async () => liveGitHubBundle(),
+          }),
+      });
+      const evaluation = await service.startLiveGitHubSourceCiEvaluation();
+      evaluationId = evaluation.evaluationId;
+
+      assert.equal(evaluation.scenario, "live-github-source-ci");
+      assert.equal(evaluation.outcome, "Could not complete");
+      assert.match(evaluation.reason, /missing Deployed revision/);
+      assert.equal(evaluation.attentionRequired, false);
+      assert.deepEqual(evaluation.allowedHumanDecisions, []);
+      assert.equal(evaluation.evidence.length, 2);
+      assert.equal(evaluation.toolCalls.length, 2);
+      assert.equal(evaluation.timeline.length, 5);
+      assert.equal(
+        evaluation.toolCalls.every(
+          (call) =>
+            call.provider === "github" &&
+            call.sourceUrl?.startsWith("https://github.com/") &&
+            call.externalMutations === 0,
+        ),
+        true,
+      );
+      assert.equal(ledger.checkIntegrity(), "ok");
+    } finally {
+      ledger.close();
+    }
+
+    const reopenedLedger = new SQLiteEvaluationLedger(databasePath);
+    try {
+      const reopened = new EvaluationService(reopenedLedger).getEvaluation(
+        evaluationId,
+      );
+      assert.equal(reopened.outcome, "Could not complete");
+      assert.equal(reopened.toolCalls[0]?.provider, "github");
+      assert.equal(reopened.toolCalls[1]?.providerRecordId, "32468420217");
+      assert.equal(reopened.timeline.length, 5);
+    } finally {
+      reopenedLedger.close();
+    }
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 function createService(ledger: SQLiteEvaluationLedger): EvaluationService {
   let sequence = 0;
   return new EvaluationService(ledger, {
     clock: () => new Date("2026-08-20T00:00:00.000Z"),
     idFactory: (kind) => `${kind}-${++sequence}`,
+  });
+}
+
+function deterministicIdFactory(): (
+  kind: "evaluation" | "event" | "decision",
+) => string {
+  let sequence = 0;
+  return (kind) => `${kind}-live-${++sequence}`;
+}
+
+function liveGitHubBundle(): GitHubEvidenceBundle {
+  const commit = "294a5eb04e9667c797aa7a316d5896c84a4342a1";
+  const fetchedAt = "2026-08-21T15:30:00.000Z";
+  return Object.freeze({
+    target: Object.freeze({
+      repository: "YongHwan2161/quietops",
+      ref: "main",
+      requiredWorkflow: "Verify",
+    }),
+    source: Object.freeze({
+      evidenceId: `github-commit:${commit}`,
+      kind: "Source revision",
+      status: "Verified",
+      value: commit,
+      sourceUrl: `https://github.com/YongHwan2161/quietops/commit/${commit}`,
+      fetchedAt,
+    }),
+    ci: Object.freeze({
+      evidenceId: "github-actions-run:32468420217",
+      kind: "CI status",
+      status: "Verified",
+      value: "success",
+      sourceUrl:
+        "https://github.com/YongHwan2161/quietops/actions/runs/32468420217",
+      fetchedAt,
+      workflowName: "Verify",
+      runId: 32468420217,
+      headSha: commit,
+      completedAt: "2026-08-21T09:33:29Z",
+    }),
+    externalMutations: 0,
   });
 }

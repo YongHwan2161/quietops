@@ -2,7 +2,7 @@
   "name": "@quietops/server",
   "version": "0.0.0",
   "private": true,
-  "description": "Validated local HTTP and browser product slice for QuietOps.",
+  "description": "Validated guarded HTTP and browser product slice for QuietOps.",
   "license": "MIT",
   "type": "module",
   "main": "dist/src/index.js",
@@ -23,6 +23,7 @@
     "clean": "tsc --build --clean && node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
     "demo:web": "npm run build && node ../../scripts/run-with-sqlite.mjs dist/src/cli.js",
     "pretypecheck": "npm run build --workspace @quietops/contracts && npm run build --workspace @quietops/agent && npm run build --workspace @quietops/storage && npm run build --workspace @quietops/application",
+    "start": "node ../../scripts/run-with-sqlite.mjs dist/src/cli.js",
     "test": "npm run build && node ../../scripts/run-with-sqlite.mjs --test dist/test/*.test.js",
     "typecheck": "tsc --noEmit"
   },

@@ -48,8 +48,41 @@ Repository-authored browser
 - `@quietops/server` binds the demo to `127.0.0.1`, applies strict request schemas and browser security headers, maps known domain conflicts without exposing internal errors, and closes its ledger with the server lifecycle.
 - An empty database is seeded once through one atomic `EvaluationService.startDemoEvaluations` batch; a non-empty database is never reset or reseeded at startup.
 - The browser uses same-origin JSON only and renders dynamic evidence through DOM text nodes. It does not import fixtures, derive policy, access SQLite, or retain the authoritative decision only in client state.
+
+### Stage 4C-1a public-demo mode
+
+The server is constructed with one explicit decision mode. `local-interactive` is the CLI default for the existing loopback judge workflow. `public-read-only` adds its capability to the inbox projection, returns `403 PUBLIC_DEMO_READ_ONLY` before invoking the application decision service, and leaves all read projections available.
+
+The browser initializes fail-closed to the public state and unlocks decision inputs only when the server explicitly reports `local-interactive`. Public mode renders the unresolved human-decision reason as a product boundary rather than a disabled form. This is anonymous evidence viewing, not authentication or a shared interactive workflow.
+
+### Stage 4C-1b process boundary
+
+`resolveQuietOpsRuntimeConfig` centralizes the CLI's environment contract. It accepts the loopback default or an explicit `0.0.0.0`, parses the platform `PORT` and local `QUIETOPS_PORT` under one numeric range, rejects conflicting values, and prevents an interactive server from binding beyond loopback. This validation completes before database construction or network listening.
+
+`GET /health` returns only `{ "status": "ok" }` under the server's global `no-store` and security headers. It proves that the HTTP process can respond; readiness of SQLite, source/CI evidence, a deployment marker, or any external provider remains a separate future contract.
+
+### Stage 4C-1c served deployment identity
+
+The runtime configuration accepts `QUIETOPS_RELEASE_COMMIT` only as a full lowercase SHA and requires it before a non-loopback bind. The CLI passes that normalized value into the server; no request, model, browser, or database record can choose the served revision.
+
+When present, the server registers exactly `/.well-known/quietops-release.json` and returns the Stage 4B-2 collector schema for the fixed repository. When absent, the route falls through to 404. The global `Cache-Control: no-store` response boundary applies. This closes the local producer/consumer contract but does not provide HTTPS, target allowlisting, Strands registration, or ledger persistence.
+
+### Stage 4C-1d persistent database path
+
+The runtime configuration now resolves `databasePath` alongside host, port, decision mode, and release commit. Local execution retains `.quietops/quietops.sqlite` and may opt into another relative path. A non-loopback process requires a configured absolute path whose lexical location is outside the resolved repository root.
+
+This check runs before `mkdir`, SQLite construction, or `listen`. It prevents the default application filesystem from being presented as persistent hosting storage, but it does not resolve symlinks or prove that a platform volume is mounted. The process-level gate separately opens the same external file across two server lifecycles and compares persisted evaluation IDs.
+
 - Re-check returns the persisted receipt plus its child projection. Inbox reload and process restart reconstruct the same parent/child history from SQLite.
 - Static HTML/CSS/JavaScript keeps this slice build-light. Fastify is the only new direct locked runtime dependency; Playwright CLI is an external local verification tool rather than an application dependency.
+
+### Stage 4C-1e production start
+
+The root `npm start` command delegates to `@quietops/server`, whose start script executes only the prebuilt `dist/src/cli.js` through the existing Node SQLite version guard. Installation and `npm run build` remain explicit build-phase operations. Startup therefore consumes the same fail-closed runtime environment contract without compiling code, introducing Railway-specific defaults, or claiming that an external path is a managed volume.
+
+### Stage 4C-1f Railway configuration
+
+The root `railway.json` uses Railway's published JSON Schema and fixes only the Railpack builder, root build/start commands, `/health`, and a 60-second health-check timeout. It does not contain variables or select a volume, domain, region, scaling, or restart policy. A future authorized service must explicitly provide `QUIETOPS_HOST`, `QUIETOPS_DECISION_MODE`, `QUIETOPS_RELEASE_COMMIT`, and `QUIETOPS_DB_PATH`; Railway supplies `PORT` at runtime.
 
 ## Trust boundaries
 
@@ -61,13 +94,31 @@ Repository-authored browser
 - Browser collection will use a fresh isolated context with bounded time, redirects, and output.
 - Logs, exports, and agent context will exclude credentials, authorization headers, cookies, raw pages, and private reasoning.
 
+## Implemented Stage 4B-0 provider seam
+
+The first live-provider boundary is isolated in `@quietops/adapters`. It accepts only the exact `YongHwan2161/quietops`, `main`, and `Verify` target, constructs requests under the fixed `https://api.github.com` origin, and performs one commit lookup followed by one completed workflow-run lookup. Redirects are rejected; each request has a bounded timeout; responses are size-limited and schema-validated; missing or malformed evidence fails closed.
+
+The adapter emits source and CI observations with stable evidence IDs, source URLs, fetch time, run identity, and `externalMutations: 0`. At the Stage 4B-0 checkpoint it deliberately remained outside the Strands tool registry, application service, ledger, and browser projections. That separation made the adapter independently verifiable without implying that the end-to-end product already used live evidence; the Stage 4B-1 successor below closes the agent/application/ledger part of that gap.
+
+## Implemented Stage 4B-1 live agent/ledger seam
+
+Stage 4B-1 registers the source and CI adapter behind exactly two Strands tools. Both tools share one lazy collection promise, so one commit request and one workflow-runs request produce a bound source/CI snapshot rather than two independently drifting reads. A scenario-specific two-call `EvidenceToolBudget` rejects duplicate or foreign tool use.
+
+The application persists both observations and their GitHub provider receipts through the existing append-only SQLite event path. At the Stage 4B-1 checkpoint no deployment collector existed, so deterministic policy recorded `Could not complete`, no human decision was offered, and the placeholder deployment URL used the reserved `.example.invalid` domain. The live scenario remains separate from browser demo seeding and cannot silently replace the credential-free judge contrast.
+
+## Implemented Stage 4B-2 deployment marker boundary
+
+The deployment collector is a factory whose trusted construction input binds one exact HTTPS URL ending in `/.well-known/quietops-release.json`. The returned zero-argument collector gives the agent no target-selection surface. It rejects credentials, non-default ports, query strings, fragments, alternate paths, redirects, non-JSON content, unknown marker fields, repository drift, abbreviated commits, oversized bodies, missing resources, and timeouts.
+
+The accepted marker schema is exactly `{ schemaVersion: "1", repository: "YongHwan2161/quietops", commit: <40 lowercase hex> }`. A successful read returns a `Verified` deployed-revision observation with its full commit, exact marker URL, fetch time, stable evidence ID, and zero external mutations. This is local contract proof only: a real target, Strands tool registration, application/ledger persistence, and browser projection remain successor work.
+
 ## Planned modules
 
 - `contracts`: schemas and public domain types.
 - `domain`: lifecycle, outcome vocabulary, attention ranking, and policy matrix.
 - `storage`: migrations, append-only repositories, idempotency, redaction, and projections.
 - `agent`: Strands runtime interface, bounded prompt, registered tools, and safe telemetry.
-- `adapters`: fixture, HTTP, GitHub/CI, deployment, and Playwright collectors.
+- `adapters`: bounded public-GitHub source/CI and construction-bound deployment-marker collectors are implemented; a real marker target, Playwright collector, and deployment-marker Strands/application integration remain planned.
 - `application`: evaluation orchestration, retries, finalization, recovery, and decisions.
 - `server`: validated API, resumable SSE, health, readiness, and export.
 - `web`: the current static master-detail inbox and decision card; evaluation progress, Ready packet, richer history, and export remain planned.
@@ -83,9 +134,9 @@ Failed, Unknown, Stale, missing, foreign, fabricated, or duplicate evidence must
 
 ## API direction
 
-The broader planned API will provide evaluation creation, event replay, audit export, health, readiness, and resumable event delivery. Mutation requests will require idempotency keys, and any later SSE reconnection will resume from the last persisted event.
+The broader planned API will provide evaluation creation, event replay, audit export, dependency-aware readiness, and resumable event delivery. Mutation requests will require idempotency keys, and any later SSE reconnection will resume from the last persisted event.
 
-Stage 4A-2 implements the first three HTTP routes: inbox, evaluation detail, and decisions. It verifies HTTP validation, status/error mapping, duplicate-action replay, browser consumption, and restart persistence. Authentication, creation routes, SSE replay, export, health/readiness, and any destructive demo reset remain future work.
+Stage 4A-2 implements inbox, evaluation detail, and decision routes. Stage 4C-1a adds the explicit local-interactive/public-read-only capability, and Stage 4C-1b adds process liveness. The slices verify HTTP validation, status/error mapping, duplicate-action replay, public write rejection, browser consumption, restart persistence, runtime binding guards, and liveness headers. Authentication, creation routes, SSE replay, export, dependency-aware readiness, and any destructive demo reset remain future work.
 
 ## Deployment boundary
 

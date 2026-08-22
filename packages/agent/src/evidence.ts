@@ -16,6 +16,10 @@ export interface EvidenceObservation {
 export interface ToolCallReceipt {
   readonly toolName: string;
   readonly evidenceId: string;
+  readonly provider?: "github";
+  readonly providerRecordId?: string;
+  readonly sourceUrl?: string;
+  readonly fetchedAt?: string;
   readonly externalMutations: 0;
 }
 
@@ -24,10 +28,11 @@ export interface EvidenceRecorder {
   readonly toolCalls: ToolCallReceipt[];
 }
 
-export type ReleaseScenario = "ready" | "deployed-sha-mismatch";
+export type FixtureReleaseScenario = "ready" | "deployed-sha-mismatch";
+export type ReleaseScenario = FixtureReleaseScenario | "live-github-source-ci";
 
 export interface ReleaseFixture<
-  Scenario extends ReleaseScenario = ReleaseScenario,
+  Scenario extends FixtureReleaseScenario = FixtureReleaseScenario,
 > {
   readonly scenario: Scenario;
   readonly expectedCommit: string;

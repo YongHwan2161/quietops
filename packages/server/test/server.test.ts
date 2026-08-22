@@ -6,6 +6,8 @@ import test from "node:test";
 
 import { createQuietOpsServer } from "../src/index.js";
 
+const RELEASE_COMMIT = "924686c12afbcd437466fd56d0ea24be8df36696";
+
 test("serves one persisted Ready and mismatch workflow over HTTP", async () => {
   const directory = await mkdtemp(join(tmpdir(), "quietops-server-"));
   const databasePath = join(directory, "ledger.sqlite");
@@ -22,13 +24,20 @@ test("serves one persisted Ready and mismatch workflow over HTTP", async () => {
       /default-src 'self'/,
     );
 
+    const healthResponse = await app.inject({ method: "GET", url: "/health" });
+    assert.equal(healthResponse.statusCode, 200);
+    assert.deepEqual(healthResponse.json(), { status: "ok" });
+    assert.equal(healthResponse.headers["cache-control"], "no-store");
+
     const inbox = inboxResponse.json<{
+      capabilities: { decisionMode: string };
       items: Array<{
         evaluationId: string;
         outcome: string;
         attentionRequired: boolean;
       }>;
     }>();
+    assert.equal(inbox.capabilities.decisionMode, "local-interactive");
     assert.equal(inbox.items.length, 2);
     assert.equal(inbox.items[0]?.outcome, "Needs decision");
     assert.equal(inbox.items[0]?.attentionRequired, true);
@@ -212,4 +221,107 @@ test("fails invalid and unauthorized decision requests closed", async () => {
   } finally {
     await app.close();
   }
+});
+
+test("keeps public demo evidence readable while rejecting shared-state decisions", async () => {
+  const app = await createQuietOpsServer({
+    decisionMode: "public-read-only",
+    seedDemo: true,
+  });
+
+  try {
+    const inboxResponse = await app.inject({
+      method: "GET",
+      url: "/api/inbox",
+    });
+    assert.equal(inboxResponse.statusCode, 200);
+    const inbox = inboxResponse.json<{
+      capabilities: { decisionMode: string };
+      items: Array<{
+        evaluationId: string;
+        outcome: string;
+      }>;
+    }>();
+    assert.equal(inbox.capabilities.decisionMode, "public-read-only");
+    assert.equal(inbox.items.length, 2);
+
+    const mismatchId = inbox.items.find(
+      (item) => item.outcome === "Needs decision",
+    )!.evaluationId;
+    const before = (
+      await app.inject({
+        method: "GET",
+        url: `/api/evaluations/${mismatchId}`,
+      })
+    ).json<{
+      evaluation: { decision: unknown; timeline: unknown[] };
+    }>().evaluation;
+
+    const blocked = await app.inject({
+      method: "POST",
+      url: `/api/evaluations/${mismatchId}/decisions`,
+      headers: { "idempotency-key": "public-demo-blocked-1" },
+      payload: { decision: "Reject", actor: "anonymous-visitor" },
+    });
+    assert.equal(blocked.statusCode, 403);
+    assert.equal(blocked.json().error.code, "PUBLIC_DEMO_READ_ONLY");
+
+    const after = (
+      await app.inject({
+        method: "GET",
+        url: `/api/evaluations/${mismatchId}`,
+      })
+    ).json<{
+      evaluation: { decision: unknown; timeline: unknown[] };
+    }>().evaluation;
+    assert.equal(before.decision, null);
+    assert.equal(after.decision, null);
+    assert.equal(after.timeline.length, before.timeline.length);
+    assert.deepEqual(
+      (await app.inject({ method: "GET", url: "/api/inbox" }))
+        .json<{ items: Array<{ evaluationId: string }> }>()
+        .items.map((item) => item.evaluationId),
+      inbox.items.map((item) => item.evaluationId),
+    );
+  } finally {
+    await app.close();
+  }
+});
+
+test("serves a strict no-store release marker only when configured", async () => {
+  const withoutMarker = await createQuietOpsServer();
+  try {
+    const missing = await withoutMarker.inject({
+      method: "GET",
+      url: "/.well-known/quietops-release.json",
+    });
+    assert.equal(missing.statusCode, 404);
+  } finally {
+    await withoutMarker.close();
+  }
+
+  const withMarker = await createQuietOpsServer({
+    releaseCommit: RELEASE_COMMIT,
+  });
+  try {
+    const marker = await withMarker.inject({
+      method: "GET",
+      url: "/.well-known/quietops-release.json",
+    });
+    assert.equal(marker.statusCode, 200);
+    assert.equal(marker.headers["cache-control"], "no-store");
+    assert.match(marker.headers["content-type"] ?? "", /^application\/json/);
+    assert.deepEqual(marker.json(), {
+      schemaVersion: "1",
+      repository: "YongHwan2161/quietops",
+      commit: RELEASE_COMMIT,
+    });
+  } finally {
+    await withMarker.close();
+  }
+
+  await assert.rejects(
+    createQuietOpsServer({ releaseCommit: "not-a-full-commit" }),
+    /releaseCommit must be 40 lowercase hexadecimal characters/,
+  );
 });

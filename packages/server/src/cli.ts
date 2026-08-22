@@ -1,21 +1,20 @@
 import { mkdir } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
+import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { resolveQuietOpsRuntimeConfig } from "./runtime-config.js";
 import { createQuietOpsServer } from "./server.js";
 
-const host = "127.0.0.1";
-const port = parsePort(process.env.QUIETOPS_PORT);
 const repositoryRoot = fileURLToPath(new URL("../../../../", import.meta.url));
-const databasePath = resolve(
-  repositoryRoot,
-  process.env.QUIETOPS_DB_PATH ?? ".quietops/quietops.sqlite",
-);
+const { host, port, decisionMode, databasePath, releaseCommit } =
+  resolveQuietOpsRuntimeConfig(process.env, { repositoryRoot });
 
 await mkdir(dirname(databasePath), { recursive: true });
 
 const app = await createQuietOpsServer({
   databasePath,
+  decisionMode,
+  ...(releaseCommit ? { releaseCommit } : {}),
   seedDemo: true,
   logger: true,
 });
@@ -27,6 +26,8 @@ console.log(
     status: "ready",
     url: `http://${host}:${port}`,
     databasePath,
+    decisionMode,
+    ...(releaseCommit ? { releaseCommit } : {}),
     externalMutations: 0,
   }),
 );
@@ -35,16 +36,4 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.once(signal, () => {
     void app.close().finally(() => process.exit(0));
   });
-}
-
-function parsePort(value: string | undefined): number {
-  if (value === undefined) return 4173;
-  if (!/^\d+$/.test(value)) {
-    throw new Error("QUIETOPS_PORT must be an integer from 1 through 65535.");
-  }
-  const parsed = Number(value);
-  if (!Number.isSafeInteger(parsed) || parsed < 1 || parsed > 65_535) {
-    throw new Error("QUIETOPS_PORT must be an integer from 1 through 65535.");
-  }
-  return parsed;
 }

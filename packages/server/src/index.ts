@@ -6,5 +6,6 @@ export {
 export {
   resolveQuietOpsRuntimeConfig,
   type QuietOpsRuntimeConfig,
+  type ResolveQuietOpsRuntimeConfigOptions,
   type RuntimeEnvironment,
 } from "./runtime-config.js";

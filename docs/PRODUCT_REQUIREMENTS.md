@@ -109,4 +109,11 @@ Stage 4C-1c establishes the served deployment-identity boundary without claiming
 - When configured, `/.well-known/quietops-release.json` returns only schema version `1`, repository `YongHwan2161/quietops`, and that exact commit under no-store headers.
 - A local route response is contract proof, not proof of an HTTPS deployment, collector integration, or a `Ready` evaluation.
 
+Stage 4C-1d establishes the persistent-path boundary without claiming a managed volume:
+
+- The loopback workflow retains its repository-local default and relative-path compatibility.
+- A public bind requires an explicit absolute SQLite path whose lexical location is outside the application repository.
+- Missing, relative, repository-local, empty, or NUL-containing public paths fail before directory creation, database construction, or network listening.
+- Reopening the same external SQLite file must preserve evaluation identities; this proves local process persistence only, not Railway volume durability.
+
 This slice does not satisfy the full P0 boundary by itself. Pending/checking progress, stale evidence, resumable SSE, export consistency, authentication, live deployment/browser evidence integration, background execution, and a fully live browser journey remain unimplemented.

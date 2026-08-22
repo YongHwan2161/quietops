@@ -6,13 +6,14 @@ Stage 4C-1b closes the next two hosting-readiness blockers locally: explicit net
 
 ## Runtime contract
 
-| Setting                   | Accepted values                         | Default                | Failure boundary                                     |
-| ------------------------- | --------------------------------------- | ---------------------- | ---------------------------------------------------- |
-| `QUIETOPS_HOST`           | `127.0.0.1`, `0.0.0.0`                  | `127.0.0.1`            | Any other host is rejected before listening          |
-| `PORT`                    | Integer 1-65535                         | Unset                  | Invalid values are rejected                          |
-| `QUIETOPS_PORT`           | Integer 1-65535                         | `4173` when both unset | Must resolve to the same value as `PORT` if both set |
-| `QUIETOPS_DECISION_MODE`  | `local-interactive`, `public-read-only` | `local-interactive`    | `0.0.0.0` requires `public-read-only`                |
-| `QUIETOPS_RELEASE_COMMIT` | 40 lowercase hexadecimal characters     | Unset                  | Stage 4C-1c requires it for `0.0.0.0`                |
+| Setting                   | Accepted values                          | Default                     | Failure boundary                                     |
+| ------------------------- | ---------------------------------------- | --------------------------- | ---------------------------------------------------- |
+| `QUIETOPS_HOST`           | `127.0.0.1`, `0.0.0.0`                   | `127.0.0.1`                 | Any other host is rejected before listening          |
+| `PORT`                    | Integer 1-65535                          | Unset                       | Invalid values are rejected                          |
+| `QUIETOPS_PORT`           | Integer 1-65535                          | `4173` when both unset      | Must resolve to the same value as `PORT` if both set |
+| `QUIETOPS_DECISION_MODE`  | `local-interactive`, `public-read-only`  | `local-interactive`         | `0.0.0.0` requires `public-read-only`                |
+| `QUIETOPS_RELEASE_COMMIT` | 40 lowercase hexadecimal characters      | Unset                       | Stage 4C-1c requires it for `0.0.0.0`                |
+| `QUIETOPS_DB_PATH`        | Local relative/absolute; public absolute | `.quietops/quietops.sqlite` | Stage 4C-1d requires public path outside repository  |
 
 This keeps the existing local workflow unchanged while preventing an unauthenticated interactive decision server from being exposed through the newly supported public bind.
 
@@ -34,4 +35,4 @@ This keeps the existing local workflow unchanged while preventing an unauthentic
 
 ## Remaining Stage 4C-1 work
 
-Stage 4C-1c subsequently closed the local no-store release-marker contract and tightened public binding to require the full release commit. A persistent production database path and deterministic production/Railway start configuration remain. Only after those local gates pass should billing and resource creation be presented for explicit approval.
+Stage 4C-1c subsequently closed the local no-store release-marker contract, and Stage 4C-1d added the external SQLite path requirement plus local restart proof. A real managed volume and deterministic production/Railway start configuration remain. Only after those gates pass should billing and resource creation be presented for explicit approval.

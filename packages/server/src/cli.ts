@@ -1,17 +1,13 @@
 import { mkdir } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
+import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { resolveQuietOpsRuntimeConfig } from "./runtime-config.js";
 import { createQuietOpsServer } from "./server.js";
 
-const { host, port, decisionMode, releaseCommit } =
-  resolveQuietOpsRuntimeConfig(process.env);
 const repositoryRoot = fileURLToPath(new URL("../../../../", import.meta.url));
-const databasePath = resolve(
-  repositoryRoot,
-  process.env.QUIETOPS_DB_PATH ?? ".quietops/quietops.sqlite",
-);
+const { host, port, decisionMode, databasePath, releaseCommit } =
+  resolveQuietOpsRuntimeConfig(process.env, { repositoryRoot });
 
 await mkdir(dirname(databasePath), { recursive: true });
 

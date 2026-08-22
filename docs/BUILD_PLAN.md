@@ -154,6 +154,14 @@ This plan is sequenced so that each stage can fail closed and be verified before
 - Gate: runtime and server tests reject missing/invalid public marker configuration, exact JSON and headers pass, full repository verification passes, and a post-commit process probe returns the running checkout's exact full HEAD.
 - Status: implemented and locally verified on 2026-08-22 KST; persistent-volume path, production/Railway start configuration, real HTTPS hosting, and live collector integration remain open.
 
+### Stage 4C-1d — Persistent database-path boundary
+
+- Resolve the local default and configured SQLite path in one runtime contract before directory creation or server construction.
+- Require an explicit absolute `QUIETOPS_DB_PATH` outside the application repository for any `0.0.0.0` bind; reject missing, relative, repository-local, empty, or NUL-containing public paths.
+- Preserve the existing local relative-path workflow while preventing it from being reused as apparent production persistence.
+- Gate: focused path tests, full repository verification, and a post-commit two-process probe against one external temporary SQLite file preserve the same evaluation IDs with zero external mutations.
+- Status: implemented and locally verified on 2026-08-22 KST; a real Railway volume, production/Railway start configuration, real HTTPS hosting, and live collector integration remain open.
+
 ## Stage 5 — API and user experience
 
 - Add validated API routes, resumable SSE, idempotent decisions, and consistent projections.

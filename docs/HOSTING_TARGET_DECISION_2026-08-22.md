@@ -37,7 +37,7 @@ The current server must not be published as-is:
 1. Closed locally by Stage 4C-1b: only `127.0.0.1` and `0.0.0.0` are accepted, the platform `PORT` is validated, ambiguous dual-port configuration fails closed, and non-loopback binding requires `public-read-only`.
 2. Closed locally by Stages 4C-1b and 4C-1c: `GET /health` provides no-store process liveness, and a strictly configured `/.well-known/quietops-release.json` returns the exact release commit. No hosted marker exists yet.
 3. Closed locally by Stage 4C-1a: explicit `public-read-only` mode keeps evidence visible, removes decision controls, and rejects otherwise valid decision writes without changing the ledger. Authentication for a future shared interactive workflow remains out of scope.
-4. The default SQLite path is repository-local. A Railway deployment needs a volume mounted at a fixed path such as `/data` and `QUIETOPS_DB_PATH=/data/quietops.sqlite`.
+4. Closed locally by Stage 4C-1d: a public bind now requires an explicit absolute `QUIETOPS_DB_PATH` outside the repository, suitable for a mount such as `/data/quietops.sqlite`. No Railway volume has been created or verified.
 5. There is no deployment start command or Railway configuration in the repository.
 
 The public-write boundary was the decisive first blocker and is now closed locally. The remaining items still prevent deployment readiness.
@@ -50,6 +50,7 @@ Stage 4C-1 should make the server hosting-ready without deploying it:
 - use the verified credential-free no-store liveness check (`COMPLETE_LOCAL`, Stage 4C-1b);
 - use the verified no-store release marker bound to a full commit (`COMPLETE_LOCAL`, Stage 4C-1c);
 - use the verified `public-read-only` decision policy so an anonymous visitor cannot corrupt the shared judge state (`COMPLETE_LOCAL`, Stage 4C-1a);
+- use the verified external SQLite path contract (`COMPLETE_LOCAL`, Stage 4C-1d), then separately create and verify the actual persistent volume only after approval;
 - add a deterministic production start command and Railway configuration;
 - run the complete local/browser verification with zero external mutations.
 

@@ -67,6 +67,12 @@ The runtime configuration accepts `QUIETOPS_RELEASE_COMMIT` only as a full lower
 
 When present, the server registers exactly `/.well-known/quietops-release.json` and returns the Stage 4B-2 collector schema for the fixed repository. When absent, the route falls through to 404. The global `Cache-Control: no-store` response boundary applies. This closes the local producer/consumer contract but does not provide HTTPS, target allowlisting, Strands registration, or ledger persistence.
 
+### Stage 4C-1d persistent database path
+
+The runtime configuration now resolves `databasePath` alongside host, port, decision mode, and release commit. Local execution retains `.quietops/quietops.sqlite` and may opt into another relative path. A non-loopback process requires a configured absolute path whose lexical location is outside the resolved repository root.
+
+This check runs before `mkdir`, SQLite construction, or `listen`. It prevents the default application filesystem from being presented as persistent hosting storage, but it does not resolve symlinks or prove that a platform volume is mounted. The process-level gate separately opens the same external file across two server lifecycles and compares persisted evaluation IDs.
+
 - Re-check returns the persisted receipt plus its child projection. Inbox reload and process restart reconstruct the same parent/child history from SQLite.
 - Static HTML/CSS/JavaScript keeps this slice build-light. Fastify is the only new direct locked runtime dependency; Playwright CLI is an external local verification tool rather than an application dependency.
 

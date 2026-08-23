@@ -13,10 +13,34 @@ const attentionCount = document.querySelector("#attention-count");
 const readyCount = document.querySelector("#ready-count");
 const toast = document.querySelector("#toast");
 const runtimeMode = document.querySelector("#runtime-mode");
+const releaseProof = document.querySelector(".release-proof");
+const releaseProofStatus = document.querySelector("#release-proof-status");
+const releaseRepository = document.querySelector("#release-repository");
+const releaseCommit = document.querySelector("#release-commit");
 
 refreshButton.addEventListener("click", () => void loadInbox(state.selectedId));
 
+void loadReleaseMarker();
 void loadInbox();
+
+async function loadReleaseMarker() {
+  try {
+    const marker = await requestJson("/.well-known/quietops-release.json");
+    releaseRepository.textContent = marker.repository;
+    releaseRepository.title = marker.repository;
+    releaseCommit.textContent = shortCommit(marker.commit);
+    releaseCommit.title = marker.commit;
+    releaseProofStatus.textContent =
+      "Reported by this deployment’s strict no-store marker.";
+    releaseProof.classList.add("verified");
+  } catch {
+    releaseRepository.textContent = "Local demo";
+    releaseCommit.textContent = "Not configured";
+    releaseProofStatus.textContent =
+      "Public deployments expose an exact repository and full commit here.";
+    releaseProof.classList.add("unavailable");
+  }
+}
 
 async function loadInbox(preferredId) {
   setBusy(true);
@@ -74,7 +98,7 @@ function renderRuntimeMode() {
   runtimeMode.textContent =
     state.decisionMode === "local-interactive"
       ? "Local evidence mode · interactive"
-      : "Public evidence demo · decisions locked";
+      : "Live app · preserved demo case · decisions locked";
 }
 
 function renderInbox() {
@@ -157,6 +181,11 @@ function renderDetail() {
     : evaluation.outcome === "Ready"
       ? "Release evidence aligned"
       : "Deployment identity drift";
+  if (state.decisionMode === "public-read-only") {
+    headingCopy.append(
+      element("p", "eyebrow record-context", "PRESERVED DEMO CASE"),
+    );
+  }
   headingCopy.append(
     element(
       "span",
@@ -251,12 +280,12 @@ function renderDecisionCard(evaluation) {
       element(
         "p",
         "",
-        "QuietOps found deployment drift, but this shared public view cannot change the preserved judge record.",
+        "QuietOps blocked Ready because this preserved example contains deployment drift. The public view demonstrates the checkpoint without changing the sample record.",
       ),
       element(
         "div",
         "demo-boundary",
-        "Reject and Re-check remain available in the local interactive workflow.",
+        "In a private workflow, the release owner can reject it or request a fresh, lineage-linked evaluation.",
       ),
     );
     section.append(card);
@@ -368,7 +397,7 @@ function renderTelemetry(evaluation) {
   const section = element("section", "section");
   const heading = element("div", "section-heading");
   heading.append(
-    element("h3", "", "Agent tool receipts"),
+    element("h3", "", "Evidence-chain receipts"),
     element("span", "", `${evaluation.externalMutations} external mutations`),
   );
   section.append(heading);

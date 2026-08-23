@@ -140,7 +140,7 @@ button {
 }
 
 .intro {
-  max-width: 830px;
+  max-width: 1100px;
 }
 
 .eyebrow {
@@ -160,7 +160,7 @@ p {
 
 h1 {
   margin-bottom: 22px;
-  font-size: clamp(42px, 6vw, 78px);
+  font-size: clamp(42px, 5vw, 68px);
   font-weight: 650;
   letter-spacing: -0.055em;
   line-height: 0.98;
@@ -173,11 +173,80 @@ h1 {
   line-height: 1.65;
 }
 
+.intro-copy strong {
+  color: var(--text);
+}
+
+.release-proof {
+  display: grid;
+  grid-template-columns: minmax(260px, 1.25fr) minmax(220px, 1fr) minmax(
+      150px,
+      0.6fr
+    );
+  gap: 18px;
+  align-items: center;
+  margin: 38px 0 18px;
+  padding: 18px 20px;
+  border: 1px solid rgba(137, 191, 255, 0.2);
+  border-radius: 16px;
+  background: linear-gradient(
+    135deg,
+    rgba(137, 191, 255, 0.08),
+    rgba(14, 18, 21, 0.74)
+  );
+}
+
+.release-proof.verified {
+  border-color: rgba(143, 255, 193, 0.28);
+}
+
+.release-proof-copy .eyebrow {
+  margin-bottom: 7px;
+  color: var(--blue);
+}
+
+.release-proof-copy strong,
+.release-proof-copy span,
+.release-proof-field span,
+.release-proof-field code {
+  display: block;
+}
+
+.release-proof-copy strong {
+  margin-bottom: 5px;
+  font-size: 13px;
+}
+
+.release-proof-copy span,
+.release-proof-field span {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.release-proof-field {
+  min-width: 0;
+}
+
+.release-proof-field span {
+  margin-bottom: 6px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.release-proof-field code {
+  overflow: hidden;
+  color: var(--mint);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .metrics {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 12px;
-  margin: 58px 0 18px;
+  margin: 18px 0;
 }
 
 .metric {
@@ -386,6 +455,11 @@ h1 {
   color: var(--muted);
   line-height: 1.55;
   overflow-wrap: anywhere;
+}
+
+.record-context {
+  margin-bottom: 9px;
+  color: var(--blue);
 }
 
 .commit-chip {
@@ -730,6 +804,10 @@ h1 {
   }
 
   .metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .release-proof {
     grid-template-columns: 1fr;
   }
 

@@ -68,7 +68,9 @@ test("serves one persisted Ready and mismatch workflow over HTTP", async () => {
     const browserResponse = await app.inject({ method: "GET", url: "/" });
     assert.equal(browserResponse.statusCode, 200);
     assert.match(browserResponse.headers["content-type"] ?? "", /^text\/html/);
-    assert.match(browserResponse.body, /Release decision inbox/);
+    assert.match(browserResponse.body, /Release evidence chain/);
+    assert.match(browserResponse.body, /Prove the code you reviewed/);
+    assert.match(browserResponse.body, /Live deployment identity/);
     assert.doesNotMatch(browserResponse.body, /<script[^>]*>[^<]/);
   } finally {
     await app.close();

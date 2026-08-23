@@ -59,6 +59,7 @@ The following is the approved P0 target, not the current public implementation:
 - [Stage 4B-2 deployment-marker collector verification](docs/DEPLOYMENT_MARKER_COLLECTOR_2026-08-22.md)
 - [Stage 4B-3 interactive live-verifier verification](docs/INTERACTIVE_LIVE_VERIFIER_2026-08-23.md)
 - [Autonomous Release Steward redirection and 90-second demo gate](docs/AUTONOMOUS_RELEASE_STEWARD_REDIRECTION_2026-08-23.md)
+- [Autonomous Release Steward technical specification](docs/AUTONOMOUS_RELEASE_STEWARD_TECHNICAL_SPEC_2026-08-23.md)
 - [Hosting-target decision and external gate](docs/HOSTING_TARGET_DECISION_2026-08-22.md)
 - [Stage 4C-1a public-demo decision boundary](docs/PUBLIC_DEMO_DECISION_BOUNDARY_2026-08-22.md)
 - [Stage 4C-1b host, port, and health boundary](docs/HOST_PORT_HEALTH_BOUNDARY_2026-08-22.md)

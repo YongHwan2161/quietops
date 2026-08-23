@@ -222,5 +222,7 @@ loop.
 
 The implementation must satisfy the gates in
 [Autonomous Release Steward redirection](AUTONOMOUS_RELEASE_STEWARD_REDIRECTION_2026-08-23.md).
+The current code mapping and honest external-write boundary are defined in the
+[technical specification](AUTONOMOUS_RELEASE_STEWARD_TECHNICAL_SPEC_2026-08-23.md).
 If a proposed shortcut violates a gate or HOLD condition, the design returns to
 review rather than being presented as a completed feature.

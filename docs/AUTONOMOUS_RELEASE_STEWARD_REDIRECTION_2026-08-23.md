@@ -2,7 +2,7 @@
 
 ## Decision
 
-`REDESIGN_APPROVED_IMPLEMENTATION_HOLD`
+`SPEC_READY_CHECKLIST_HOLD`
 
 This is a documentation-only product decision. It does not authorize a provider
 write, deployment, public receipt replacement, or a claim that the redesigned
@@ -150,7 +150,9 @@ These assets reduce implementation risk. They do not waive Gates A–E.
 
 ## Next gate
 
-Write a technical specification that maps this contract to the current codebase,
-names the exact state transitions and storage changes, and proves how a GitHub
-issue write can be isolated and replay-safe. No implementation should begin
-until that specification passes Gates A–E on paper.
+The [technical specification](AUTONOMOUS_RELEASE_STEWARD_TECHNICAL_SPEC_2026-08-23.md)
+maps this contract to the current codebase, defines exact state transitions and
+storage changes, and narrows the GitHub issue guarantee to one authorized
+automatic attempt with an uncertainty stop. It passes Gates A–E on paper. The
+next gate is a sequenced build checklist; implementation remains on HOLD until
+that checklist has independent pass and stop conditions.

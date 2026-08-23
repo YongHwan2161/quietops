@@ -1,5 +1,16 @@
 # Technical Plan
 
+## Successor specification — 2026-08-23
+
+`SPEC_READY_CHECKLIST_HOLD` — The
+[Autonomous Release Steward technical specification](AUTONOMOUS_RELEASE_STEWARD_TECHNICAL_SPEC_2026-08-23.md)
+controls new product work. It replaces the user-started verifier as the target
+architecture with a signed event trigger, durable observation cycles, one
+context-dependent decision, same-run resume, and one bounded incident action.
+The material below remains the implementation record and planning history for
+the verifier baseline; it must not be read as proof that the successor workflow
+already exists.
+
 ## Planned architecture
 
 QuietOps uses a TypeScript workspace with a browser application, Fastify API, application services, a Strands agent boundary, purpose-built evidence adapters, deterministic policy, and SQLite audit storage. The first browser slice uses repository-authored HTML, CSS, and JavaScript without a client framework; a later framework migration must justify its additional dependency and build surface.

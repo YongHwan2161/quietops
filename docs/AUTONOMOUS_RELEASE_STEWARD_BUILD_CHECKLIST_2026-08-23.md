@@ -2,7 +2,7 @@
 
 ## Status
 
-`ITEM_1_COMPLETE_ITEM_2_HOLD`
+`ITEM_2_COMPLETE_ITEM_3_HOLD`
 
 This checklist is the implementation contract for the
 [technical specification](AUTONOMOUS_RELEASE_STEWARD_TECHNICAL_SPEC_2026-08-23.md).
@@ -71,7 +71,7 @@ documentation PR is reviewed and the user explicitly advances to the build.
       HOLD/rollback: Stop if new types require weakening existing verifier contracts
       or if a transition depends on model narration. Revert only the Item 1 commit.
 
-- [ ] **2. Add SQLite version 2 and the transactional release-run ledger**
+- [x] **2. Add SQLite version 2 and the transactional release-run ledger**
       Spec ref: `Autonomous Release Steward Technical Spec > Persistence model` and
       `> Storage operations`
       What to build: Replace the one-shot bootstrap with ordered migrations; add the

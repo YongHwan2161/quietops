@@ -1,5 +1,7 @@
 import { DatabaseSync } from "node:sqlite";
 
+import { applySQLiteMigrations } from "./sqlite-migrations.js";
+
 export type JsonValue =
   null | boolean | number | string | readonly JsonValue[] | JsonObject;
 
@@ -82,94 +84,13 @@ interface IdempotencyRow {
   readonly response_json: string;
 }
 
-const SCHEMA = `
-  PRAGMA foreign_keys = ON;
-
-  CREATE TABLE IF NOT EXISTS schema_migrations (
-    version INTEGER PRIMARY KEY,
-    applied_at TEXT NOT NULL
-  ) STRICT;
-
-  CREATE TABLE IF NOT EXISTS evaluations (
-    evaluation_id TEXT PRIMARY KEY,
-    scenario TEXT NOT NULL,
-    candidate_json TEXT NOT NULL,
-    parent_evaluation_id TEXT REFERENCES evaluations(evaluation_id),
-    created_at TEXT NOT NULL
-  ) STRICT;
-
-  CREATE TABLE IF NOT EXISTS evaluation_events (
-    event_id TEXT PRIMARY KEY,
-    evaluation_id TEXT NOT NULL REFERENCES evaluations(evaluation_id),
-    sequence INTEGER NOT NULL CHECK (sequence > 0),
-    event_type TEXT NOT NULL,
-    occurred_at TEXT NOT NULL,
-    payload_json TEXT NOT NULL,
-    UNIQUE (evaluation_id, sequence)
-  ) STRICT;
-
-  CREATE UNIQUE INDEX IF NOT EXISTS one_human_decision_per_evaluation
-    ON evaluation_events(evaluation_id)
-    WHERE event_type = 'human-decision-recorded';
-
-  CREATE TABLE IF NOT EXISTS idempotency_records (
-    scope TEXT NOT NULL,
-    key TEXT NOT NULL,
-    request_json TEXT NOT NULL,
-    response_json TEXT NOT NULL,
-    created_at TEXT NOT NULL,
-    PRIMARY KEY (scope, key)
-  ) STRICT;
-
-  CREATE TRIGGER IF NOT EXISTS evaluations_no_update
-  BEFORE UPDATE ON evaluations
-  BEGIN
-    SELECT RAISE(ABORT, 'evaluations are append-only');
-  END;
-
-  CREATE TRIGGER IF NOT EXISTS evaluations_no_delete
-  BEFORE DELETE ON evaluations
-  BEGIN
-    SELECT RAISE(ABORT, 'evaluations are append-only');
-  END;
-
-  CREATE TRIGGER IF NOT EXISTS evaluation_events_no_update
-  BEFORE UPDATE ON evaluation_events
-  BEGIN
-    SELECT RAISE(ABORT, 'evaluation events are append-only');
-  END;
-
-  CREATE TRIGGER IF NOT EXISTS evaluation_events_no_delete
-  BEFORE DELETE ON evaluation_events
-  BEGIN
-    SELECT RAISE(ABORT, 'evaluation events are append-only');
-  END;
-
-  CREATE TRIGGER IF NOT EXISTS idempotency_records_no_update
-  BEFORE UPDATE ON idempotency_records
-  BEGIN
-    SELECT RAISE(ABORT, 'idempotency records are append-only');
-  END;
-
-  CREATE TRIGGER IF NOT EXISTS idempotency_records_no_delete
-  BEFORE DELETE ON idempotency_records
-  BEGIN
-    SELECT RAISE(ABORT, 'idempotency records are append-only');
-  END;
-`;
-
 export class SQLiteEvaluationLedger {
   readonly #database: DatabaseSync;
   #closed = false;
 
   constructor(path = ":memory:") {
     this.#database = new DatabaseSync(path);
-    this.#database.exec(SCHEMA);
-    this.#database
-      .prepare(
-        "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (?, ?)",
-      )
-      .run(1, new Date().toISOString());
+    applySQLiteMigrations(this.#database);
   }
 
   commit(batch: CommitLedgerBatch): CommitLedgerBatchResult {

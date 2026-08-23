@@ -1,27 +1,48 @@
 # QuietOps
 
-QuietOps is a Strands-powered release identity verifier for solo developers and small software teams. It binds reviewed source, required CI, and the deployed revision into one auditable record, then refuses `Ready` when any link is missing or contradictory.
+QuietOps is being redesigned as a Strands-powered autonomous release steward for
+solo developers and small software teams. It follows one release without an
+open browser, handles routine observation and bounded waiting on its own, and
+asks the owner only when outside context is required to keep waiting or escalate
+an incident. It then resumes the same run and proves the bounded result.
 
-**Live read-only demo:** [quietops-production.up.railway.app](https://quietops-production.up.railway.app)
+**Existing verifier baseline:**
+[quietops-production.up.railway.app](https://quietops-production.up.railway.app)
 
-> Current boundary: the successor branch now wires the bounded GitHub and Railway collectors into one user-started, persisted Strands verification with deterministic policy and per-deployed-commit replay. This integrated path is locally verified but is not present on the public Railway deployment until successor CI, merge, deployment, and public-browser checks pass. Browser-behavior collection, live AWS/Bedrock, and AgentCore remain unverified.
+> Current boundary: the public site demonstrates the existing read-only verifier,
+> not the redesigned product. Background/event-triggered execution, persisted
+> wait/resume, browser smoke evidence, and the post-decision incident action are
+> planned requirements and must not be presented as implemented.
 
 ## The core idea
 
-The notification is not the innovation. The evidence chain is.
+The approval prompt is not the product. Quiet autonomy before it and resumed
+work after it are.
 
-A green CI badge proves that one commit passed one workflow. It does not prove that the same commit reached production or that the running product behaves as reviewed. Small teams repeatedly reconstruct that chain from separate dashboards and notes, often while preparing to approve the release.
+Small teams repeatedly switch among CI, deployment, and smoke status while a
+release progresses. Most observations and short waits are routine; the human's
+context is needed only when a rollout remains delayed beyond the safe window but
+the currently deployed revision is still healthy.
 
-QuietOps makes the question explicit: **is the exact code we reviewed the code users are running?** Strands gathers bounded read-only observations; deterministic policy decides whether the required evidence is complete and aligned; the append-only ledger preserves what was observed; and a human retains authority over the exception. Observation, policy, and authorization remain separate records.
+QuietOps performs those routine steps, then asks one real question: **is this
+delay still expected, or should it become an incident?** The existing
+identity-bound evidence chain, deterministic policy, and append-only ledger make
+that boundary trustworthy. A valid answer resumes the same run and authorizes at
+most one bounded action.
 
 ## Product flow
 
-1. Identify one allowlisted release target by repository, branch, required workflow, and deployment marker.
-2. A user starts `Verify this live release` from the public site.
-3. Collect source revision, required CI result, and deployment marker through exactly three read-only Strands tools.
-4. Evaluate the evidence with deterministic policy.
-5. Produce a concise `Ready`, `Needs decision`, or `Could not complete` recommendation.
-6. Persist provider receipts once per deployed commit and replay the same record on repeat requests.
+The following is the approved P0 target, not the current public implementation:
+
+1. A configured release event starts one durable run without a browser click.
+2. Strands observes source, CI, deployment identity, and one smoke route through
+   bounded tools.
+3. QuietOps waits and re-checks within deterministic policy limits.
+4. A normal release completes with zero human prompts and zero external writes.
+5. A persistently delayed but healthy rollout asks for `WAIT_AND_RECHECK` or
+   `ESCALATE_INCIDENT`.
+6. QuietOps resumes the same run and either observes again or creates exactly one
+   authorized evidence-backed GitHub issue.
 
 ## Planning documents
 
@@ -37,6 +58,9 @@ QuietOps makes the question explicit: **is the exact code we reviewed the code u
 - [Stage 4B-1 live GitHub Strands/ledger verification](docs/LIVE_GITHUB_STRANDS_LEDGER_2026-08-22.md)
 - [Stage 4B-2 deployment-marker collector verification](docs/DEPLOYMENT_MARKER_COLLECTOR_2026-08-22.md)
 - [Stage 4B-3 interactive live-verifier verification](docs/INTERACTIVE_LIVE_VERIFIER_2026-08-23.md)
+- [Autonomous Release Steward redirection and 90-second demo gate](docs/AUTONOMOUS_RELEASE_STEWARD_REDIRECTION_2026-08-23.md)
+- [Autonomous Release Steward technical specification](docs/AUTONOMOUS_RELEASE_STEWARD_TECHNICAL_SPEC_2026-08-23.md)
+- [Autonomous Release Steward build checklist](docs/AUTONOMOUS_RELEASE_STEWARD_BUILD_CHECKLIST_2026-08-23.md)
 - [Hosting-target decision and external gate](docs/HOSTING_TARGET_DECISION_2026-08-22.md)
 - [Stage 4C-1a public-demo decision boundary](docs/PUBLIC_DEMO_DECISION_BOUNDARY_2026-08-22.md)
 - [Stage 4C-1b host, port, and health boundary](docs/HOST_PORT_HEALTH_BOUNDARY_2026-08-22.md)
@@ -51,7 +75,8 @@ QuietOps makes the question explicit: **is the exact code we reviewed the code u
 
 ## Current status
 
-- Active increment: Stage 4B-3 interactive live release verifier; browser-behavior evidence, background execution, live AWS, and broader Stage 5 work remain incomplete
+- Active product direction: the Autonomous Release Steward PRD, technical specification, and 12-item build checklist are documentation-ready; implementation remains on HOLD pending checklist review and an explicit instruction to begin Item 1
+- Current implementation baseline: Stage 4B-3 interactive live release verifier; background execution, persisted wait/resume, and a post-decision bounded action are not yet implemented
 - Implementation: candidate identity, bounded Ready/mismatch Strands paths, a three-tool live source/CI/deployment path, deterministic policy, an append-only SQLite ledger, per-release idempotent replay, human-decision lineage for preserved mismatch cases, inbox/detail projections, and provider receipt links
 - Browser and API: the guarded Fastify server defaults to loopback and exposes inbox, detail, live-verification, decision, liveness, and optionally exact-commit release-marker endpoints. A configured release identity enables the fixed-target `POST /api/live-verifications`; public mode still rejects human decision writes and exposes no arbitrary repository or URL input.
 - Live integration status: the complete GitHub source → required CI → Railway marker → policy → SQLite path passes both injected tests and one actual provider-backed local browser journey. It returned `Ready` for predecessor commit `1edbded139c0e7e8ec6e90e9d8f8ee57353ea41a`, CI run `32562992913`, and the matching Railway marker, then replayed the same evaluation on the second request. The new UI and endpoint remain a local successor claim until deployed and invoked on the public domain.

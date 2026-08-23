@@ -1,128 +1,229 @@
 # Product Requirements
 
+## Status
+
+`CHECKLIST_READY_BUILD_HOLD` — This PRD describes the intended P0
+product. The existing verifier is an implementation baseline, not evidence that
+the workflow below already exists. The technical specification and checklist are
+ready, but implementation may begin only after checklist review and an explicit
+instruction to start Item 1.
+
+## Product summary
+
+QuietOps is an autonomous release steward for a small software team. It follows
+one release in the background, completes routine observation and bounded waiting
+on its own, and asks for one human decision only when the evidence cannot reveal
+whether a prolonged rollout is expected or should be treated as an incident.
+It then resumes the same run and records the authorized result.
+
+## Target user
+
+A solo developer or member of a 2–10 person team who owns releases but does not
+have a dedicated release engineer.
+
 ## User promise
 
-QuietOps handles routine release-evidence work quietly. If it interrupts the user, it explains exactly what changed, why it matters, and which decision still belongs to a human.
+“Start the release, leave QuietOps alone, and hear from it only if your context
+is required. When you decide, it carries that decision through once and proves
+what happened.”
 
-## Experience principles
+## Product vocabulary
 
-- Quiet by default: routine success becomes a concise result, not another notification stream.
-- Exception first: blocked work opens on the unresolved decision and supporting evidence.
-- Facts before recommendations: observations, policy results, recommendations, and authorization are visually distinct.
-- No false certainty: unknown, inaccessible, stale, or contradictory evidence remains explicit.
-- Progressive detail: the outcome is understandable quickly, with evidence available on demand.
-- No chat dependency: the core workflow uses an inbox, evidence views, and constrained decisions.
+### Run states
 
-## Core requirements
+- `MONITORING`: collecting current release evidence.
+- `WAITING`: sleeping until a policy-defined observation time.
+- `AWAITING_DECISION`: all safe autonomous work is exhausted and one fresh
+  human decision is required.
+- `RESUMING`: applying one valid decision to the same persisted run.
+- `COMPLETED`: release evidence converged without human help.
+- `ESCALATED`: one authorized incident issue was created and verified.
+- `STOPPED`: deterministic failure, invalid evidence, expired authority, or an
+  unavailable required surface prevents safe progress.
 
-### Release inbox
+### Evidence outcomes
 
-- Show repository, branch, short commit, evaluation age, outcome, and whether human attention is required.
-- Rank decision-required candidates ahead of Ready candidates.
-- Offer a useful credential-free demo from the empty state.
+- `VERIFIED`: the required claim is supported by current evidence.
+- `BLOCKED`: current evidence contradicts a required condition.
+- `UNAVAILABLE`: the required evidence could not be obtained or validated.
 
-### Evaluation progress
+`AWAITING_DECISION` is not a softer name for `BLOCKED` or `UNAVAILABLE`. It is
+valid only when the evidence is sufficient and the remaining choice depends on
+human context.
 
-- Show candidate identity, required checks, deployment identity, browser behavior, and policy decision.
-- Support Pending, Checking, Verified, Failed, Unknown, Stale, and Not required states.
-- Expose safe tool name, status, and duration telemetry without private reasoning or secrets.
+## Core user journey
 
-### Ready result
+1. A configured release event creates a durable run without a browser click.
+2. QuietOps observes the release candidate and required CI.
+3. If CI succeeds, QuietOps observes deployment identity.
+4. If the candidate is not live but the previous revision is healthy, QuietOps
+   waits and re-checks within a configured budget.
+5. If the candidate converges, QuietOps performs one user-facing smoke check and
+   completes quietly.
+6. If the normal observation budget expires while the previous revision remains
+   healthy, QuietOps creates one decision envelope.
+7. The owner chooses `WAIT_AND_RECHECK` or `ESCALATE_INCIDENT`.
+8. QuietOps resumes the same run, performs the chosen bounded action, and
+   verifies its outcome.
+9. The history shows autonomous work, human attention, external writes, and the
+   terminal receipt separately.
 
-- Bind the recommendation to the exact candidate and evaluation time.
-- Link every conclusion to evidence.
-- Require no human acknowledgement merely because routine checks passed.
-- Avoid unsupported words such as secure, guaranteed, certified, or production safe.
+## Epic 1 — Leave the release watch loop
 
-### Exception handling
+### User story
 
-- Lead with one plain-language conflict and show expected and observed values together.
-- Offer only actions valid for the current state.
-- Keep Reject and Re-check as P0 actions; risk acceptance is deferred.
-- Record actor, timestamp, action, and optional note without changing prior evidence.
+As a release owner, I want QuietOps to start from a release event and continue
+without an open tab so that I do not babysit the dashboard.
 
-### History and export
+### Acceptance criteria
 
-- Preserve chronological evidence, policy, recommendation, and human-decision events.
-- Link a re-check to its parent evaluation without rewriting history.
-- Export the candidate identity, policy version, gate results, timestamps, recommendation, decision, demo labeling, and nonclaims.
+- One configured trigger creates exactly one release run.
+- Closing and reopening the browser does not pause, restart, or duplicate work.
+- A duplicate trigger resolves to the existing run and receipt.
+- The first screen prioritizes the current release and whether attention is
+  required, not an evidence ledger.
+- A normal release completes with zero human prompts.
 
-## Acceptance boundary
+## Epic 2 — Make safe autonomous progress
 
-The P0 product is acceptable only when the Ready and mismatch journeys run end to end, duplicate actions are idempotent, stale or missing evidence fails closed, exports match screen projections, and the complete judge path performs zero external mutations.
+### User story
 
-## Implemented application and browser spine
+As a release owner, I want the agent to collect evidence and absorb ordinary
+rollout delay before contacting me.
 
-Stage 4A-1 now provides the browser-independent state path for the credential-free demo:
+### Acceptance criteria
 
-- Ready and mismatch run through one application service and the existing bounded Strands agent path.
-- Completed evaluation, evidence, policy, tool-call, and human-decision events are appended to SQLite.
-- An unresolved mismatch is ranked ahead of Ready in the inbox projection.
-- Reject and Re-check requested are the only mismatch decisions; Ready accepts neither.
-- An idempotency-key replay returns the original decision receipt without creating another event.
-- Re-check creates a child evaluation and preserves the parent evidence and decision timeline.
+- Every tool call records its bounded purpose, input identity, time, outcome,
+  and receipt.
+- Deterministic policy bounds the allowed tools, observation count, wait length,
+  total run time, and terminal states.
+- The delayed-deployment path performs at least two deployment observations
+  separated by a real policy-controlled wait.
+- `WAITING` is persisted before sleep and survives process restart.
+- Failed required CI, unhealthy deployment, invalid evidence, or unavailable
+  required evidence reaches `STOPPED`; none creates an approval request.
+- The quiet-completion path performs zero external writes.
 
-Stage 4A-2 adds the first judge-visible product path:
+## Epic 3 — Ask one question only a person can answer
 
-- A loopback-only HTTP server reconstructs inbox and detail responses from the file-backed ledger.
-- The browser consumes only those HTTP projections; it does not import scenario fixtures or calculate the policy outcome.
-- The initial view places an unresolved mismatch above the quiet Ready history and shows expected versus observed evidence beside zero-mutation tool receipts.
-- Reject and Re-check are real API commands with required idempotency keys. Re-check opens a fresh child evaluation while both directions of the persisted lineage remain navigable after refresh or restart.
+### User story
 
-Stage 4B-0 adds the first live-provider seam without overstating product completion:
+As a release owner, I want a concise decision only after the agent has exhausted
+safe work, with enough context to choose without reopening every tool.
 
-- A fixed-target, read-only GitHub adapter collects the exact public `main` revision and completed required `Verify` workflow with source receipts.
-- Invalid, missing, non-allowlisted, oversized, redirected, rate-limited, or timed-out evidence fails closed.
-- The adapter remains separate from the Strands runner, application service, ledger, and browser until the next integration increment; current browser evaluations therefore remain explicitly fixture-backed.
+### Acceptance criteria
 
-Stage 4B-1 closes the agent/application seam for source and CI only:
+- A decision is valid only when required CI succeeded, the previous deployment
+  remains healthy, the candidate is still absent, and the normal observation
+  budget is exhausted.
+- The decision includes the exact run and candidate, current facts, observations
+  already attempted, why the agent cannot choose, two options, each consequence,
+  evidence freshness, expiry, and a resume/idempotency identity.
+- The only P0 options are `WAIT_AND_RECHECK` and `ESCALATE_INCIDENT`.
+- There is no free-form command, “accept risk,” “approve mismatch,” or silent
+  default.
+- Expired, stale, already-consumed, or foreign-run decisions are rejected.
 
-- Two bounded Strands tools share one live GitHub collection and persist the exact provider receipts with the observations and policy result.
-- Missing deployment evidence produces `Could not complete`, no attention request, and no allowed human decision.
-- The file-backed integration test proves the source/CI receipts survive ledger reopen; the live command separately proves the public GitHub → Strands → SQLite path.
-- The browser remains fixture-backed, so this increment is not a fully live Ready or mismatch journey.
+## Epic 4 — Resume and carry out the decision once
 
-Stage 4B-2 establishes the deployment-observation boundary without claiming a deployment:
+### User story
 
-- Trusted application code constructs a collector around one exact HTTPS marker URL; neither the model nor a tool invocation can redirect it to another target.
-- The marker must identify this repository and a full commit under a strict versioned JSON schema.
-- Missing, malformed, oversized, redirected, non-HTTPS, credential-bearing, queried, fragmented, or timed-out reads fail closed.
-- The collector is not yet a Strands tool and no real deployment URL has been selected, so it cannot change a live evaluation outcome.
+As a release owner, I want my decision to continue the paused work rather than
+merely acknowledge a warning.
 
-Stage 4B-3 turns the bounded evidence seams into a user-operable product slice:
+### Acceptance criteria
 
-- The public page offers one `Verify this live release` action for the fixed QuietOps repository and Railway deployment; the browser cannot supply a target.
-- One Strands invocation calls source, required CI, and deployment-marker tools exactly once under a three-call allowlist.
-- Deterministic policy alone returns `Ready`, `Needs decision`, or `Could not complete`; model narration cannot override the observations.
-- The application persists provider URLs, record IDs, fetch times, evidence IDs, and hard-zero mutation receipts in SQLite.
-- Repeating the action for the same configured deployment commit replays the original evaluation instead of appending another record or re-running providers.
-- Preserved Ready/mismatch examples remain explicitly separated from user-started live receipts.
+- A valid choice resumes the original run; it does not create an unrelated run.
+- `WAIT_AND_RECHECK` grants one additional bounded observation window and then
+  re-enters the deterministic state machine.
+- `ESCALATE_INCIDENT` authorizes exactly one GitHub issue containing current
+  evidence and a stable QuietOps run reference.
+- No provider write occurs before the authorization is durably recorded.
+- Repeated decision submissions, process restarts, and action retries do not
+  create a second issue or terminal event.
+- If the provider outcome is ambiguous, QuietOps records uncertainty and does
+  not blindly retry the write.
+- Evidence observations, human authorization, action attempts, provider
+  receipts, and terminal state transitions remain distinct records.
 
-Stage 4C-1a establishes the public-demo write boundary without claiming a hosted demo:
+## Epic 5 — Make saved attention visible
 
-- `local-interactive` preserves the existing credential-free judge workflow and bounded Reject/Re-check decisions.
-- `public-read-only` preserves inbox, evidence, lineage, and tool receipts but exposes no decision inputs.
-- The server rejects an otherwise valid public decision request with `403 PUBLIC_DEMO_READ_ONLY`; the evaluation, timeline, and inbox identity remain unchanged.
-- Missing or unrecognized browser capability data fails closed to the public read-only presentation.
+### User story
 
-Stage 4C-1b establishes the public process boundary without claiming deployment readiness:
+As a judge or user, I want to see what the agent handled and exactly where human
+judgment changed the outcome.
 
-- The local default remains `127.0.0.1:4173`; a non-loopback bind accepts only `0.0.0.0` and requires `public-read-only`.
-- The standard `PORT` and local `QUIETOPS_PORT` accept only integers from 1 through 65535, and conflicting dual configuration fails closed.
-- `GET /health` reports process liveness with no-store caching. It does not inspect or claim SQLite, live evidence, deployment identity, or provider readiness.
+### Acceptance criteria
 
-Stage 4C-1c establishes the served deployment-identity boundary without claiming a deployment:
+- Each run reports counts for autonomous observations, policy waits, human
+  prompts, and external writes.
+- The normal path visibly reports `human prompts: 0`.
+- Timing and counts come from run records rather than marketing estimates.
+- Preserved demo evidence and current live evidence are labeled separately.
+- A first-time viewer can identify the user, recurring problem, autonomous work,
+  genuine human boundary, and resumed result without reading implementation
+  details.
 
-- `QUIETOPS_RELEASE_COMMIT` accepts only one full lowercase commit and becomes mandatory before a public bind.
-- The marker route is absent when the setting is absent; QuietOps cannot synthesize a deployment identity from local defaults or browser input.
-- When configured, `/.well-known/quietops-release.json` returns only schema version `1`, repository `YongHwan2161/quietops`, and that exact commit under no-store headers.
-- A local route response is contract proof, not proof of an HTTPS deployment, collector integration, or a `Ready` evaluation.
+## Edge cases
 
-Stage 4C-1d establishes the persistent-path boundary without claiming a managed volume:
+- Duplicate release event arrives before or after a terminal state.
+- Process stops during observation, persisted waiting, or resume.
+- Candidate changes while a run is active.
+- CI status changes or becomes stale during the observation window.
+- Previous deployment becomes unhealthy while waiting.
+- Candidate deploys after a decision is created but before it is answered.
+- Decision expires, is submitted twice, or targets a different run.
+- GitHub issue creation times out after the provider may have accepted it.
+- Smoke evidence is unavailable after deployment convergence.
+- Provider rate limits or credentials prevent a required read or authorized
+  write.
 
-- The loopback workflow retains its repository-local default and relative-path compatibility.
-- A public bind requires an explicit absolute SQLite path whose lexical location is outside the application repository.
-- Missing, relative, repository-local, empty, or NUL-containing public paths fail before directory creation, database construction, or network listening.
-- Reopening the same external SQLite file must preserve evaluation identities; this proves local process persistence only, not Railway volume durability.
+## What we are building now
 
-This slice does not satisfy the full P0 boundary by itself. Public deployment and browser proof of Stage 4B-3, browser-behavior evidence, stale-evidence policy, resumable SSE, export consistency, authentication, and background execution remain separate work.
+1. A technical specification for the persistent release-run state machine.
+2. A non-browser trigger and resumable background runner.
+3. A bounded autonomous observe/wait/smoke sequence using the existing
+   collectors and Strands integration.
+4. The single decision envelope and two resume branches.
+5. Exactly-once incident escalation with provider receipt.
+6. An exception-first browser experience and a deterministic 90-second demo.
+
+## What may be added later
+
+- Installation for arbitrary public repositories.
+- Multiple deployment providers and workflow mappings.
+- Team roles, multiple responders, and notification channels.
+- Additional reversible actions proven by separate policy and idempotency
+  contracts.
+
+These are expansion paths, not P0 requirements. Repository generality is useful
+only after the one configured workflow proves the full autonomy-decision-resume
+loop.
+
+## Non-goals
+
+- A read-only report generator presented as the entire product.
+- A generic approval inbox or human-in-the-loop SDK.
+- A chatbot that asks what to do before exhausting bounded autonomous work.
+- Autonomous production mutation beyond the single authorized incident issue.
+- Optimizing for broad integration count before proving one complete outcome.
+
+## Submission proof points
+
+- One unassisted quiet-completion run.
+- One delayed-rollout run with autonomous wait, a genuine decision, and resume.
+- One process-restart recovery during a non-terminal state.
+- Zero writes before authorization and exactly one issue after escalation.
+- Duplicate-trigger and duplicate-decision evidence.
+- Visible Strands orchestration plus deterministic policy enforcement.
+- A live URL and a 90-second core story understandable without repository
+  archaeology.
+
+## Implementation entry gate
+
+The implementation must satisfy the gates in
+[Autonomous Release Steward redirection](AUTONOMOUS_RELEASE_STEWARD_REDIRECTION_2026-08-23.md).
+The current code mapping and honest external-write boundary are defined in the
+[technical specification](AUTONOMOUS_RELEASE_STEWARD_TECHNICAL_SPEC_2026-08-23.md).
+If a proposed shortcut violates a gate or HOLD condition, the design returns to
+review rather than being presented as a completed feature.

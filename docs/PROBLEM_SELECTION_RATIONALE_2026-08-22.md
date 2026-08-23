@@ -1,8 +1,33 @@
 # QuietOps Problem Selection and Competition Fit — 2026-08-22
 
+## Successor decision — 2026-08-23
+
+`REDESIGN_DIRECTION_AUTONOMOUS_RELEASE_STEWARD_IMPLEMENTATION_HOLD` — Keep the
+small-team release domain and the verified evidence assets, but replace the
+manual verifier as the product center. QuietOps must become an autonomous
+release steward that starts from a release event, handles normal observation and
+waiting without supervision, asks one genuine context-dependent question, and
+resumes the same run to a bounded verified outcome.
+
+The earlier identity-bound evidence chain remains an important mechanism, not
+the complete value proposition. The winning proof is now the continuous
+autonomy → human judgment → resumed action loop defined in
+[the redirection decision](AUTONOMOUS_RELEASE_STEWARD_REDIRECTION_2026-08-23.md).
+This successor decision overrides the earlier recommendation to preserve the
+interaction model unchanged.
+
+The remaining sections are retained as historical rationale. In particular,
+the earlier 3–5 person trial requirement is not a current P0 gate; the successor
+PRD requires run-derived attention and effect evidence that can be demonstrated
+without recruiting external testers.
+
 ## Decision
 
-`KEEP_DIRECTION_SHARPEN_IMPACT` — release-evidence collection is a strong fit for the Agents for Humans Hackathon Professional Agents track, but the domain alone is not a winning advantage. QuietOps must demonstrate one fully live workflow and measured user value so judges do not reduce it to a CI dashboard or safety-oriented technical proof.
+Historical decision: `KEEP_DIRECTION_SHARPEN_IMPACT` — release-evidence
+collection was judged a strong fit for the Agents for Humans Hackathon
+Professional Agents track, but the domain alone was not a winning advantage.
+This remains useful context; the 2026-08-23 successor decision controls future
+product work.
 
 ## Core clarification after the live demo — 2026-08-23
 

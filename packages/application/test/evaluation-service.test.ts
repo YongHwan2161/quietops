@@ -4,8 +4,15 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { runLiveGitHubSourceCiSlice, runReadySlice } from "@quietops/agent";
-import type { GitHubEvidenceBundle } from "@quietops/adapters";
+import {
+  runLiveGitHubSourceCiSlice,
+  runLiveReleaseVerification,
+  runReadySlice,
+} from "@quietops/agent";
+import type {
+  DeploymentEvidenceBundle,
+  GitHubEvidenceBundle,
+} from "@quietops/adapters";
 import { SQLiteEvaluationLedger } from "@quietops/storage";
 
 import {
@@ -242,6 +249,98 @@ test("persists live GitHub Strands receipts while refusing Ready without deploym
   }
 });
 
+test("persists and replays one complete live release receipt per idempotency key", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "quietops-live-release-"));
+  const databasePath = join(directory, "evidence.sqlite");
+  let runnerCalls = 0;
+  let evaluationId = "";
+  try {
+    const ledger = new SQLiteEvaluationLedger(databasePath);
+    try {
+      const service = new EvaluationService(ledger, {
+        clock: () => new Date("2026-08-23T06:00:02.000Z"),
+        idFactory: deterministicIdFactory(),
+        runLiveReleaseVerification: () => {
+          runnerCalls += 1;
+          return runLiveReleaseVerification({
+            githubCollector: async () => liveGitHubBundle(),
+            deploymentCollector: async () => liveDeploymentBundle(),
+          });
+        },
+      });
+
+      const first =
+        await service.startLiveReleaseVerification("release:294a5eb");
+      const replay =
+        await service.startLiveReleaseVerification("release:294a5eb");
+      evaluationId = first.evaluation.evaluationId;
+
+      assert.equal(runnerCalls, 1);
+      assert.equal(first.replayed, false);
+      assert.equal(replay.replayed, true);
+      assert.equal(replay.evaluation.evaluationId, evaluationId);
+      assert.equal(first.evaluation.scenario, "live-release-verification");
+      assert.equal(first.evaluation.outcome, "Ready");
+      assert.equal(first.evaluation.evidence.length, 3);
+      assert.equal(first.evaluation.toolCalls.length, 3);
+      assert.equal(
+        first.evaluation.toolCalls[2]?.provider,
+        "deployment-marker",
+      );
+      assert.equal(first.evaluation.timeline.length, 6);
+      assert.equal(first.evaluation.externalMutations, 0);
+      assert.equal(ledger.checkIntegrity(), "ok");
+    } finally {
+      ledger.close();
+    }
+
+    const reopenedLedger = new SQLiteEvaluationLedger(databasePath);
+    try {
+      const reopened = new EvaluationService(reopenedLedger).getEvaluation(
+        evaluationId,
+      );
+      assert.equal(reopened.outcome, "Ready");
+      assert.equal(reopened.toolCalls[2]?.provider, "deployment-marker");
+      assert.equal(reopened.timeline.length, 6);
+    } finally {
+      reopenedLedger.close();
+    }
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("refuses to persist a live release receipt from a foreign deployment marker", async () => {
+  const baseline = await runLiveReleaseVerification({
+    githubCollector: async () => liveGitHubBundle(),
+    deploymentCollector: async () => liveDeploymentBundle(),
+  });
+  const ledger = new SQLiteEvaluationLedger();
+  try {
+    const service = new EvaluationService(ledger, {
+      runLiveReleaseVerification: async () => ({
+        ...baseline,
+        toolCalls: Object.freeze([
+          ...baseline.toolCalls.slice(0, 2),
+          Object.freeze({
+            ...baseline.toolCalls[2]!,
+            sourceUrl:
+              "https://foreign.example/.well-known/quietops-release.json",
+          }),
+        ]),
+      }),
+    });
+
+    await assert.rejects(
+      service.startLiveReleaseVerification("release:foreign-marker"),
+      StoredEvaluationInvariantError,
+    );
+    assert.deepEqual(ledger.listEvaluations(), []);
+  } finally {
+    ledger.close();
+  }
+});
+
 function createService(ledger: SQLiteEvaluationLedger): EvaluationService {
   let sequence = 0;
   return new EvaluationService(ledger, {
@@ -286,6 +385,27 @@ function liveGitHubBundle(): GitHubEvidenceBundle {
       runId: 32468420217,
       headSha: commit,
       completedAt: "2026-08-21T09:33:29Z",
+    }),
+    externalMutations: 0,
+  });
+}
+
+function liveDeploymentBundle(): DeploymentEvidenceBundle {
+  const commit = "294a5eb04e9667c797aa7a316d5896c84a4342a1";
+  const markerUrl =
+    "https://quietops-production.up.railway.app/.well-known/quietops-release.json";
+  return Object.freeze({
+    target: Object.freeze({
+      repository: "YongHwan2161/quietops",
+      markerUrl,
+    }),
+    deployment: Object.freeze({
+      evidenceId: `deployment-marker:${commit}`,
+      kind: "Deployed revision",
+      status: "Verified",
+      value: commit,
+      sourceUrl: markerUrl,
+      fetchedAt: "2026-08-23T06:00:01.000Z",
     }),
     externalMutations: 0,
   });

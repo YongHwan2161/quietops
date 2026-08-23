@@ -35,6 +35,11 @@ export {
   type RunLiveGitHubSourceCiOptions,
 } from "./run-live-github.js";
 export {
+  runLiveReleaseVerification,
+  type LiveReleaseVerificationResult,
+  type RunLiveReleaseVerificationOptions,
+} from "./run-live-release.js";
+export {
   runJudgeDemo,
   verifyJudgeDemoResults,
   type JudgeDemoResult,
@@ -46,3 +51,9 @@ export {
   createLiveGitHubEvidenceTools,
   type CreateLiveGitHubEvidenceToolsOptions,
 } from "./live-github-tools.js";
+export {
+  LIVE_RELEASE_EVIDENCE_TOOL_NAMES,
+  QUIETOPS_LIVE_DEPLOYMENT_TARGET,
+  createLiveReleaseEvidenceTools,
+  type CreateLiveReleaseEvidenceToolsOptions,
+} from "./live-release-tools.js";

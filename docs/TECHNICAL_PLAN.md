@@ -112,13 +112,19 @@ The deployment collector is a factory whose trusted construction input binds one
 
 The accepted marker schema is exactly `{ schemaVersion: "1", repository: "YongHwan2161/quietops", commit: <40 lowercase hex> }`. A successful read returns a `Verified` deployed-revision observation with its full commit, exact marker URL, fetch time, stable evidence ID, and zero external mutations. This is local contract proof only: a real target, Strands tool registration, application/ledger persistence, and browser projection remain successor work.
 
+## Implemented Stage 4B-3 interactive live verifier
+
+Stage 4B-3 composes the shared GitHub source/CI collection and the construction-bound Railway marker behind exactly three Strands tools and a three-call budget. The browser cannot pass a target. The agent records observations and narration; `evaluateReleaseMismatch` remains the only authority for the outcome.
+
+`POST /api/live-verifications` exists only as a fixed-target action. When an exact server release commit is configured, it becomes the internal idempotency key for the live run. The application coalesces concurrent requests, commits the evaluation and provider receipts atomically, and replays the stored evaluation for repeated requests to the same deployed commit. Public decision writes remain blocked.
+
 ## Planned modules
 
 - `contracts`: schemas and public domain types.
 - `domain`: lifecycle, outcome vocabulary, attention ranking, and policy matrix.
 - `storage`: migrations, append-only repositories, idempotency, redaction, and projections.
 - `agent`: Strands runtime interface, bounded prompt, registered tools, and safe telemetry.
-- `adapters`: bounded public-GitHub source/CI and construction-bound deployment-marker collectors are implemented; a real marker target, Playwright collector, and deployment-marker Strands/application integration remain planned.
+- `adapters`: bounded public-GitHub source/CI and construction-bound deployment-marker collectors are implemented; the fixed Railway target is registered in the live Strands path, while a Playwright behavior collector remains planned.
 - `application`: evaluation orchestration, retries, finalization, recovery, and decisions.
 - `server`: validated API, resumable SSE, health, readiness, and export.
 - `web`: the current static master-detail inbox and decision card; evaluation progress, Ready packet, richer history, and export remain planned.
@@ -136,7 +142,7 @@ Failed, Unknown, Stale, missing, foreign, fabricated, or duplicate evidence must
 
 The broader planned API will provide evaluation creation, event replay, audit export, dependency-aware readiness, and resumable event delivery. Mutation requests will require idempotency keys, and any later SSE reconnection will resume from the last persisted event.
 
-Stage 4A-2 implements inbox, evaluation detail, and decision routes. Stage 4C-1a adds the explicit local-interactive/public-read-only capability, and Stage 4C-1b adds process liveness. The slices verify HTTP validation, status/error mapping, duplicate-action replay, public write rejection, browser consumption, restart persistence, runtime binding guards, and liveness headers. Authentication, creation routes, SSE replay, export, dependency-aware readiness, and any destructive demo reset remain future work.
+Stage 4A-2 implements inbox, evaluation detail, and decision routes. Stage 4B-3 adds fixed-target live evaluation creation and per-release replay. Stage 4C-1a adds the explicit local-interactive/public-read-only capability, and Stage 4C-1b adds process liveness. Authentication, arbitrary target onboarding, SSE replay, export, dependency-aware readiness, and any destructive demo reset remain future work.
 
 ## Deployment boundary
 

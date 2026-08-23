@@ -11,4 +11,5 @@ export {
   type EvaluationTimelineEntry,
   type HumanDecisionProjection,
   type InboxItemProjection,
+  type LiveReleaseVerificationCommandResult,
 } from "./evaluation-service.js";

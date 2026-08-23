@@ -5,9 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
-      content="QuietOps surfaces release evidence only when a human decision is required."
+      content="QuietOps binds source, required CI, and the deployed revision into one auditable release decision."
     />
-    <title>QuietOps — Release decision inbox</title>
+    <title>QuietOps — Release evidence chain</title>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="/styles.css" />
     <script src="/app.js" defer></script>
@@ -28,26 +28,74 @@
 
     <main class="shell">
       <section class="intro" aria-labelledby="page-title">
-        <p class="eyebrow">RELEASE STEWARDSHIP</p>
+        <p class="eyebrow">RELEASE EVIDENCE CHAIN</p>
         <h1 id="page-title">
-          Stay quiet when it’s ready.<br />Surface what needs judgment.
+          Prove the code you reviewed<br />is the code actually running.
         </h1>
         <p class="intro-copy">
-          Strands checks release evidence in the background. You only get
-          interrupted when policy cannot safely make the call.
+          QuietOps uses Strands to bind source, required CI, and the deployed
+          revision into one auditable chain. Deterministic policy refuses
+          <strong>Ready</strong> when any link is missing or drifts—so people
+          decide the exception instead of reconstructing the evidence.
         </p>
       </section>
 
+      <section class="release-proof" aria-label="Live deployment identity">
+        <div class="release-proof-copy">
+          <p class="eyebrow">THIS LIVE DEPLOYMENT</p>
+          <strong>Machine-readable release identity</strong>
+          <span id="release-proof-status">Checking the no-store marker…</span>
+        </div>
+        <div class="release-proof-field">
+          <span>Repository</span>
+          <code id="release-repository">Loading…</code>
+        </div>
+        <div class="release-proof-field">
+          <span>Running commit</span>
+          <code id="release-commit">Loading…</code>
+        </div>
+      </section>
+
+      <section class="verification-runner" aria-labelledby="verify-title">
+        <div class="verification-copy">
+          <p class="eyebrow">TRY THE PRODUCT</p>
+          <h2 id="verify-title">Verify this live release</h2>
+          <p>
+            Start a fresh, read-only Strands run against the public repository,
+            its required CI workflow, and this deployment’s exact release
+            marker.
+          </p>
+        </div>
+        <ol class="verification-chain" aria-label="Verification chain">
+          <li>GitHub source</li>
+          <li>Required CI</li>
+          <li>Running revision</li>
+        </ol>
+        <div class="verification-action">
+          <button
+            id="verify-button"
+            class="verify-button"
+            type="button"
+            disabled
+          >
+            Verify this live release
+          </button>
+          <p id="verify-status" role="status" aria-live="polite">
+            No provider writes. One receipt per deployed commit.
+          </p>
+        </div>
+      </section>
+
       <section class="metrics" aria-label="Release evaluation summary">
-        <article class="metric metric-attention">
-          <span class="metric-label">Needs attention</span>
-          <strong id="attention-count">—</strong>
-          <span>human decisions waiting</span>
+        <article class="metric">
+          <span class="metric-label">Live verifications</span>
+          <strong id="live-count">—</strong>
+          <span>user-started evidence chains</span>
         </article>
         <article class="metric">
-          <span class="metric-label">Quietly cleared</span>
+          <span class="metric-label">Verified Ready</span>
           <strong id="ready-count">—</strong>
-          <span>ready evaluations</span>
+          <span>live releases with matching identity</span>
         </article>
         <article class="metric">
           <span class="metric-label">External mutations</span>

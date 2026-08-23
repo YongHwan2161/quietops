@@ -4,6 +4,14 @@
 
 `KEEP_DIRECTION_SHARPEN_IMPACT` — release-evidence collection is a strong fit for the Agents for Humans Hackathon Professional Agents track, but the domain alone is not a winning advantage. QuietOps must demonstrate one fully live workflow and measured user value so judges do not reduce it to a CI dashboard or safety-oriented technical proof.
 
+## Core clarification after the live demo — 2026-08-23
+
+“Only interrupt a human when judgment is required” is the event's expected interaction model, not QuietOps' primary innovation. The differentiated product is an identity-bound evidence chain that answers a harder release question:
+
+> Is the exact code the team reviewed the code users are actually running?
+
+QuietOps binds source revision, required CI outcome, deployed revision, and browser behavior to one candidate identity. Strands performs bounded evidence collection; deterministic policy prevents missing or contradictory evidence from becoming `Ready`; the append-only ledger preserves the receipts; and human authorization remains a separate record. The exception-only inbox is the interface to that mechanism, not the mechanism itself.
+
 ## Official context
 
 The signed-in Devpost MCP returned complete event overview, judging criteria, and announcement data on 2026-08-22 KST. The event asks for a Strands Agents SDK agent that handles routine and repetitive work in the background and surfaces only when a real human decision remains. The Professional Agents description targets repetitive work around skilled judgment, and the organizer recommends one workflow that works end to end rather than several partial workflows.

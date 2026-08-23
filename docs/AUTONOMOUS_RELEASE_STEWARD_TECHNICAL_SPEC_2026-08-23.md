@@ -462,6 +462,7 @@ New configuration is fail-closed:
 
 - `QUIETOPS_WORKER_ENABLED=true`
 - `QUIETOPS_POLICY_PROFILE=demo-v1|standard-v1`
+- `QUIETOPS_GITHUB_WEBHOOK_ENABLED=true`
 - `QUIETOPS_GITHUB_WEBHOOK_SECRET=<secret>`
 - `QUIETOPS_OPERATOR_TOKEN=<secret>`
 - `QUIETOPS_GITHUB_ISSUE_TOKEN=<repo-scoped secret>`

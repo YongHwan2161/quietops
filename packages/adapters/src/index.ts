@@ -23,6 +23,19 @@ export {
 } from "./deployment-marker.js";
 
 export {
+  HOMEPAGE_SMOKE_ERROR_CODES,
+  MAX_HOMEPAGE_SMOKE_BYTES,
+  QUIETOPS_PRODUCT_MARKER,
+  HomepageSmokeError,
+  createHomepageSmokeCollector,
+  type CreateHomepageSmokeCollectorOptions,
+  type HomepageSmokeBundle,
+  type HomepageSmokeErrorCode,
+  type HomepageSmokeObservation,
+  type HomepageSmokeTarget,
+} from "./homepage-smoke.js";
+
+export {
   GitHubWebhookAuthenticationError,
   GitHubWebhookRequestError,
   MAX_GITHUB_WEBHOOK_BODY_BYTES,

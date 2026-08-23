@@ -57,3 +57,32 @@ export {
   createLiveReleaseEvidenceTools,
   type CreateLiveReleaseEvidenceToolsOptions,
 } from "./live-release-tools.js";
+export {
+  RELEASE_STEWARD_PHASES,
+  RELEASE_STEWARD_TOOL_NAMES,
+  QUIETOPS_LIVE_HOMEPAGE_TARGET,
+  createReleaseStewardRecorder,
+  createReleaseStewardTools,
+  releaseStewardToolNamesForPhase,
+  type CreateReleaseStewardToolsOptions,
+  type RecheckProposal,
+  type ReleaseStewardEvidence,
+  type ReleaseStewardEvidenceKind,
+  type ReleaseStewardObservationPhase,
+  type ReleaseStewardPhase,
+  type ReleaseStewardRecorder,
+  type ReleaseStewardToolName,
+  type ReleaseStewardToolReceipt,
+} from "./release-steward-tools.js";
+export {
+  ReleaseStewardPostconditionError,
+  validateReleaseStewardPostconditions,
+  type ReleaseStewardPostcondition,
+  type ReleaseStewardPostconditionInput,
+} from "./release-steward-policy.js";
+export { ReleaseStewardToolBudget } from "./release-steward-tool-budget.js";
+export {
+  runReleaseStewardObservation,
+  type ReleaseStewardObservationResult,
+  type RunReleaseStewardObservationOptions,
+} from "./release-steward.js";

@@ -2,7 +2,7 @@
 
 ## Decision
 
-`SPEC_READY_CHECKLIST_HOLD`
+`CHECKLIST_READY_BUILD_HOLD`
 
 This is a documentation-only product decision. It does not authorize a provider
 write, deployment, public receipt replacement, or a claim that the redesigned
@@ -151,8 +151,8 @@ These assets reduce implementation risk. They do not waive Gates A–E.
 ## Next gate
 
 The [technical specification](AUTONOMOUS_RELEASE_STEWARD_TECHNICAL_SPEC_2026-08-23.md)
-maps this contract to the current codebase, defines exact state transitions and
-storage changes, and narrows the GitHub issue guarantee to one authorized
-automatic attempt with an uncertainty stop. It passes Gates A–E on paper. The
-next gate is a sequenced build checklist; implementation remains on HOLD until
-that checklist has independent pass and stop conditions.
+maps this contract to the current codebase and passes Gates A–E on paper. The
+[sequenced build checklist](AUTONOMOUS_RELEASE_STEWARD_BUILD_CHECKLIST_2026-08-23.md)
+now supplies independent pass, stop, evidence, and rollback conditions for 12
+items. Implementation remains on HOLD until the checklist is reviewed and the
+user explicitly starts Item 1.

@@ -2,12 +2,14 @@
 
 ## Status
 
-`SPEC_READY_CHECKLIST_HOLD`
+`CHECKLIST_READY_BUILD_HOLD`
 
 This specification maps the approved Autonomous Release Steward PRD to the
 current QuietOps codebase. It authorizes no implementation, GitHub webhook,
 credential, issue write, merge, deployment, or public receipt replacement. The
-next allowed step is a build checklist with independently verifiable increments.
+[build checklist](AUTONOMOUS_RELEASE_STEWARD_BUILD_CHECKLIST_2026-08-23.md)
+defines the independently verifiable increments; Item 1 remains on HOLD until
+the user explicitly starts the build.
 
 ## Overview
 
@@ -589,8 +591,10 @@ The submission must label any preserved run separately from current live state.
 
 ## Checklist handoff
 
-The build checklist must decompose this spec into narrow increments with a
-separate pass gate for contracts, migration, trigger, durable worker, quiet path,
-decision, wait resume, issue adapter, authenticated browser, live Bedrock,
-deployment configuration, and final end-to-end evidence. No increment may combine
-the first live credential installation with the first provider write.
+The
+[build checklist](AUTONOMOUS_RELEASE_STEWARD_BUILD_CHECKLIST_2026-08-23.md)
+decomposes this spec into 12 narrow increments with separate pass gates for
+contracts, migration, trigger, durable worker, quiet path, decision, wait resume,
+issue adapter, authenticated browser, live Bedrock, deployment configuration,
+and final end-to-end evidence. It keeps the first live credential installation
+separate from the first provider write.

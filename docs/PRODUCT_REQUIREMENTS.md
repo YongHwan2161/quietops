@@ -2,10 +2,11 @@
 
 ## Status
 
-`REDESIGN_APPROVED_IMPLEMENTATION_HOLD` — This PRD describes the intended P0
+`CHECKLIST_READY_BUILD_HOLD` — This PRD describes the intended P0
 product. The existing verifier is an implementation baseline, not evidence that
-the workflow below already exists. Implementation may begin only after the
-redirection gates are translated into a technical specification.
+the workflow below already exists. The technical specification and checklist are
+ready, but implementation may begin only after checklist review and an explicit
+instruction to start Item 1.
 
 ## Product summary
 

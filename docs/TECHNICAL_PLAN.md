@@ -2,11 +2,14 @@
 
 ## Successor specification — 2026-08-23
 
-`SPEC_READY_CHECKLIST_HOLD` — The
+`CHECKLIST_READY_BUILD_HOLD` — The
 [Autonomous Release Steward technical specification](AUTONOMOUS_RELEASE_STEWARD_TECHNICAL_SPEC_2026-08-23.md)
 controls new product work. It replaces the user-started verifier as the target
 architecture with a signed event trigger, durable observation cycles, one
 context-dependent decision, same-run resume, and one bounded incident action.
+The
+[12-item build checklist](AUTONOMOUS_RELEASE_STEWARD_BUILD_CHECKLIST_2026-08-23.md)
+defines the implementation sequence; Item 1 remains on explicit-start HOLD.
 The material below remains the implementation record and planning history for
 the verifier baseline; it must not be read as proof that the successor workflow
 already exists.

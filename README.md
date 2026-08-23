@@ -60,6 +60,7 @@ The following is the approved P0 target, not the current public implementation:
 - [Stage 4B-3 interactive live-verifier verification](docs/INTERACTIVE_LIVE_VERIFIER_2026-08-23.md)
 - [Autonomous Release Steward redirection and 90-second demo gate](docs/AUTONOMOUS_RELEASE_STEWARD_REDIRECTION_2026-08-23.md)
 - [Autonomous Release Steward technical specification](docs/AUTONOMOUS_RELEASE_STEWARD_TECHNICAL_SPEC_2026-08-23.md)
+- [Autonomous Release Steward build checklist](docs/AUTONOMOUS_RELEASE_STEWARD_BUILD_CHECKLIST_2026-08-23.md)
 - [Hosting-target decision and external gate](docs/HOSTING_TARGET_DECISION_2026-08-22.md)
 - [Stage 4C-1a public-demo decision boundary](docs/PUBLIC_DEMO_DECISION_BOUNDARY_2026-08-22.md)
 - [Stage 4C-1b host, port, and health boundary](docs/HOST_PORT_HEALTH_BOUNDARY_2026-08-22.md)
@@ -74,7 +75,7 @@ The following is the approved P0 target, not the current public implementation:
 
 ## Current status
 
-- Active product direction: documentation-approved Autonomous Release Steward redesign; implementation is on HOLD until a technical specification passes the autonomy, genuine-decision, same-run resume, effect-accounting, and competition-communication gates
+- Active product direction: the Autonomous Release Steward PRD, technical specification, and 12-item build checklist are documentation-ready; implementation remains on HOLD pending checklist review and an explicit instruction to begin Item 1
 - Current implementation baseline: Stage 4B-3 interactive live release verifier; background execution, persisted wait/resume, and a post-decision bounded action are not yet implemented
 - Implementation: candidate identity, bounded Ready/mismatch Strands paths, a three-tool live source/CI/deployment path, deterministic policy, an append-only SQLite ledger, per-release idempotent replay, human-decision lineage for preserved mismatch cases, inbox/detail projections, and provider receipt links
 - Browser and API: the guarded Fastify server defaults to loopback and exposes inbox, detail, live-verification, decision, liveness, and optionally exact-commit release-marker endpoints. A configured release identity enables the fixed-target `POST /api/live-verifications`; public mode still rejects human decision writes and exposes no arbitrary repository or URL input.

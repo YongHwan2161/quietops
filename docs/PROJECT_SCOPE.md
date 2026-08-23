@@ -2,7 +2,7 @@
 
 ## Direction status
 
-`REDESIGN_APPROVED_IMPLEMENTATION_HOLD` — QuietOps is being reframed from a
+`CHECKLIST_READY_BUILD_HOLD` — QuietOps is being reframed from a
 user-started release verifier into an autonomous release steward. This document
 defines the next product boundary; it does not claim that background execution,
 decision resume, or a post-decision action is implemented.

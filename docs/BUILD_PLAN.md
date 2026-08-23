@@ -121,6 +121,16 @@ This plan is sequenced so that each stage can fail closed and be verified before
 - Gate: success, unsafe-target, malformed-schema, content-type, missing, oversized, and timeout tests plus full repository verification pass.
 - Status: implemented and locally verified on 2026-08-22 KST; no real deployment target has been selected or called, and Strands/application/ledger/browser integration remains open.
 
+### Stage 4B-3 — Interactive live release verifier
+
+- Register the construction-bound Railway marker beside the shared GitHub source/CI collection as exactly three read-only Strands tools.
+- Derive the candidate from the observed public `main` commit, keep deterministic policy authoritative, and require source commit, successful required CI, and deployed commit to align before `Ready`.
+- Expose one fixed-target `POST /api/live-verifications` action only when the server has an exact configured release identity; accept no repository, branch, commit, or URL from the browser.
+- Persist the full provider receipt chain in the append-only SQLite ledger and replay one record per deployed commit so repeated judge clicks do not append duplicate evaluations.
+- Present a prominent `Verify this live release` action, visible progress, live-versus-preserved inbox grouping, and provider receipt links in the browser.
+- Gate: focused agent/application/server tests, full repository verification, actual live read-only execution, desktop/mobile browser QA, successor CI, merge, Railway deployment, and public-domain replay verification pass.
+- Status: implementation, 54-test full verification, actual provider-backed local execution, idempotent replay, and headed desktop/mobile browser QA pass on 2026-08-23 KST; successor CI, merge, Railway deployment, and public-domain replay remain pending.
+
 ### Stage 4C-0 — Hosting target selection and external gate
 
 - Compare current platform constraints against the actual monorepo, Node, SQLite, networking, persistence, and public-write requirements.

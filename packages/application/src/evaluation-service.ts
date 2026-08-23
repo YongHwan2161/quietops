@@ -4,14 +4,19 @@ import {
   EVIDENCE_KINDS,
   EVIDENCE_TOOL_NAMES,
   LIVE_GITHUB_EVIDENCE_TOOL_NAMES,
+  LIVE_RELEASE_EVIDENCE_TOOL_NAMES,
   MISMATCH_FIXTURE,
+  QUIETOPS_LIVE_DEPLOYMENT_TARGET,
   READY_FIXTURE,
+  evaluateReleaseMismatch,
   runLiveGitHubSourceCiSlice,
+  runLiveReleaseVerification,
   runReleaseSlice,
   type EvidenceKind,
   type EvidenceObservation,
   type FixtureReleaseScenario,
   type LiveGitHubSourceCiSliceResult,
+  type LiveReleaseVerificationResult,
   type ReleaseFixture,
   type ReleaseScenario,
   type ReleaseSliceResult,
@@ -84,6 +89,7 @@ export interface EvaluationDetailProjection {
 
 export interface InboxItemProjection {
   readonly evaluationId: string;
+  readonly scenario: ReleaseScenario;
   readonly repository: string;
   readonly branch: string;
   readonly commit: string;
@@ -110,6 +116,11 @@ export interface DecisionCommandResult {
   readonly replayed: boolean;
 }
 
+export interface LiveReleaseVerificationCommandResult {
+  readonly evaluation: EvaluationDetailProjection;
+  readonly replayed: boolean;
+}
+
 export interface EvaluationServiceOptions {
   readonly clock?: () => Date;
   readonly idFactory?: (kind: "evaluation" | "event" | "decision") => string;
@@ -117,6 +128,7 @@ export interface EvaluationServiceOptions {
     fixture: ReleaseFixture,
   ) => Promise<ReleaseSliceResult>;
   readonly runLiveGitHubSourceCi?: () => Promise<LiveGitHubSourceCiSliceResult>;
+  readonly runLiveReleaseVerification?: () => Promise<LiveReleaseVerificationResult>;
 }
 
 export class EvaluationNotFoundError extends Error {
@@ -165,6 +177,11 @@ export class EvaluationService {
     fixture: ReleaseFixture,
   ) => Promise<ReleaseSliceResult>;
   readonly #runLiveGitHubSourceCi: () => Promise<LiveGitHubSourceCiSliceResult>;
+  readonly #runLiveReleaseVerification: () => Promise<LiveReleaseVerificationResult>;
+  readonly #liveReleaseRuns = new Map<
+    string,
+    Promise<LiveReleaseVerificationCommandResult>
+  >();
 
   constructor(
     ledger: SQLiteEvaluationLedger,
@@ -178,6 +195,8 @@ export class EvaluationService {
       options.runScenario ?? ((fixture) => runReleaseSlice(fixture));
     this.#runLiveGitHubSourceCi =
       options.runLiveGitHubSourceCi ?? runLiveGitHubSourceCiSlice;
+    this.#runLiveReleaseVerification =
+      options.runLiveReleaseVerification ?? runLiveReleaseVerification;
   }
 
   async startDemoEvaluation(
@@ -217,6 +236,26 @@ export class EvaluationService {
       events: created.events,
     });
     return this.getEvaluation(created.evaluation.evaluationId);
+  }
+
+  async startLiveReleaseVerification(
+    idempotencyKey: string,
+  ): Promise<LiveReleaseVerificationCommandResult> {
+    const key = requireBoundedText(idempotencyKey, "idempotencyKey", 200);
+    const running = this.#liveReleaseRuns.get(key);
+    if (running) {
+      const result = await running;
+      return Object.freeze({
+        evaluation: result.evaluation,
+        replayed: true,
+      });
+    }
+
+    const started = this.#startLiveReleaseVerification(key).finally(() => {
+      this.#liveReleaseRuns.delete(key);
+    });
+    this.#liveReleaseRuns.set(key, started);
+    return started;
   }
 
   async recordDecision(
@@ -308,6 +347,7 @@ export class EvaluationService {
       );
       return Object.freeze({
         evaluationId: detail.evaluationId,
+        scenario: detail.scenario,
         repository: detail.candidate.repository,
         branch: detail.candidate.branch,
         commit: detail.candidate.commit,
@@ -364,6 +404,66 @@ export class EvaluationService {
     return this.#buildEvaluationEvents(
       "live-github-source-ci",
       liveGitHubCandidate(result),
+      result,
+      null,
+    );
+  }
+
+  async #startLiveReleaseVerification(
+    idempotencyKey: string,
+  ): Promise<LiveReleaseVerificationCommandResult> {
+    const scope = "live-release-verification";
+    const request = Object.freeze({
+      scenario: "live-release-verification",
+    }) satisfies JsonObject;
+    const existing = this.#ledger.findIdempotency(
+      scope,
+      idempotencyKey,
+      request,
+    );
+    if (existing.found) {
+      return Object.freeze({
+        evaluation: this.getEvaluation(
+          readString(existing.response, "evaluationId"),
+        ),
+        replayed: true,
+      });
+    }
+
+    const created = await this.#buildLiveReleaseEvaluation();
+    const response = Object.freeze({
+      evaluationId: created.evaluation.evaluationId,
+    }) satisfies JsonObject;
+    const committed = this.#ledger.commit({
+      evaluations: [created.evaluation],
+      events: created.events,
+      idempotency: {
+        scope,
+        key: idempotencyKey,
+        request,
+        response,
+        createdAt: created.evaluation.createdAt,
+      },
+    });
+    const evaluationId = readString(
+      committed.response ?? response,
+      "evaluationId",
+    );
+    return Object.freeze({
+      evaluation: this.getEvaluation(evaluationId),
+      replayed: committed.replayed,
+    });
+  }
+
+  async #buildLiveReleaseEvaluation(): Promise<{
+    readonly evaluation: NewEvaluationRecord;
+    readonly events: readonly NewLedgerEvent[];
+  }> {
+    const result = await this.#runLiveReleaseVerification();
+    requireResultMatchesScenario(result, "live-release-verification");
+    return this.#buildEvaluationEvents(
+      "live-release-verification",
+      liveReleaseCandidate(result),
       result,
       null,
     );
@@ -466,6 +566,18 @@ function liveGitHubCandidate(
   });
 }
 
+function liveReleaseCandidate(
+  result: LiveReleaseVerificationResult,
+): CandidateIdentity {
+  return parseCandidateIdentity({
+    schemaVersion: "1",
+    repository: result.candidate.repository,
+    branch: result.candidate.branch,
+    commit: result.candidate.commit,
+    deploymentUrl: result.candidate.deploymentUrl,
+  });
+}
+
 function demoCandidate(commit: string): CandidateIdentity {
   return parseCandidateIdentity({
     schemaVersion: "1",
@@ -509,9 +621,13 @@ function evidenceKindsForScenario(
 }
 
 function toolNamesForScenario(scenario: ReleaseScenario): readonly string[] {
-  return scenario === "live-github-source-ci"
-    ? LIVE_GITHUB_EVIDENCE_TOOL_NAMES
-    : EVIDENCE_TOOL_NAMES;
+  if (scenario === "live-github-source-ci") {
+    return LIVE_GITHUB_EVIDENCE_TOOL_NAMES;
+  }
+  if (scenario === "live-release-verification") {
+    return LIVE_RELEASE_EVIDENCE_TOOL_NAMES;
+  }
+  return EVIDENCE_TOOL_NAMES;
 }
 
 function requireResultMatchesScenario(
@@ -551,7 +667,9 @@ function requireResultMatchesScenario(
     result.externalMutations !== 0 ||
     result.toolCalls.some((call) => call.externalMutations !== 0) ||
     (scenario === "live-github-source-ci" &&
-      !result.toolCalls.every(isBoundLiveGitHubReceipt))
+      !result.toolCalls.every(isBoundLiveGitHubReceipt)) ||
+    (scenario === "live-release-verification" &&
+      !isBoundLiveReleaseReceiptChain(result.toolCalls, result.observations))
   ) {
     throw new StoredEvaluationInvariantError(
       `runner receipts do not match evidence for ${scenario}`,
@@ -567,7 +685,9 @@ function requireResultMatchesScenario(
           JSON.stringify(["Reject", "Re-check requested"]))) ||
     (scenario === "live-github-source-ci" &&
       (result.policy.outcome !== "Could not complete" ||
-        result.policy.allowedHumanDecisions.length !== 0))
+        result.policy.allowedHumanDecisions.length !== 0)) ||
+    (scenario === "live-release-verification" &&
+      !policyMatchesLiveEvidence(result.policy, result.observations))
   ) {
     throw new StoredEvaluationInvariantError(
       `runner policy does not match ${scenario}`,
@@ -675,7 +795,19 @@ function projectEvaluation(
       (outcome !== "Could not complete" ||
         allowedHumanDecisions.length !== 0 ||
         candidate.commit !== evidence[0]?.value ||
-        !toolCalls.every(isBoundLiveGitHubReceipt)))
+        !toolCalls.every(isBoundLiveGitHubReceipt))) ||
+    (scenario === "live-release-verification" &&
+      (candidate.commit !== evidence[0]?.value ||
+        candidate.deploymentUrl !==
+          new URL(QUIETOPS_LIVE_DEPLOYMENT_TARGET.markerUrl).origin ||
+        !isBoundLiveReleaseReceiptChain(toolCalls, evidence) ||
+        !policyProjectionMatchesLiveEvidence(
+          outcome,
+          reason,
+          policyEvidenceIds,
+          allowedHumanDecisions,
+          evidence,
+        )))
   ) {
     throw new StoredEvaluationInvariantError(
       `evaluation ${record.evaluationId} outcome does not match its demo scenario`,
@@ -746,7 +878,11 @@ function parseToolCalls(payload: JsonObject): readonly ToolCallReceipt[] {
     value.map((item) => {
       const record = readObject(item, "tool call");
       const provider = readOptionalString(record, "provider");
-      if (provider !== undefined && provider !== "github") {
+      if (
+        provider !== undefined &&
+        provider !== "github" &&
+        provider !== "deployment-marker"
+      ) {
         throw new StoredEvaluationInvariantError(
           `unknown tool receipt provider ${provider}`,
         );
@@ -784,7 +920,8 @@ function parseScenario(value: string): ReleaseScenario {
   if (
     value === "ready" ||
     value === "deployed-sha-mismatch" ||
-    value === "live-github-source-ci"
+    value === "live-github-source-ci" ||
+    value === "live-release-verification"
   )
     return value;
   throw new StoredEvaluationInvariantError(`unknown scenario ${value}`);
@@ -931,6 +1068,71 @@ function isBoundLiveGitHubReceipt(call: ToolCallReceipt): boolean {
   } catch {
     return false;
   }
+}
+
+function isBoundLiveReleaseReceiptChain(
+  calls: readonly ToolCallReceipt[],
+  evidence: readonly EvidenceObservation[],
+): boolean {
+  if (calls.length !== 3) return false;
+  const [source, ci, deployment] = calls;
+  const [sourceEvidence, ciEvidence, deploymentEvidence] = evidence;
+  if (
+    !source ||
+    !ci ||
+    !deployment ||
+    !sourceEvidence ||
+    !ciEvidence ||
+    !deploymentEvidence ||
+    !isBoundLiveGitHubReceipt(source) ||
+    !isBoundLiveGitHubReceipt(ci) ||
+    source.providerRecordId !== sourceEvidence.value ||
+    source.evidenceId !== sourceEvidence.evidenceId ||
+    ci.evidenceId !== ciEvidence.evidenceId ||
+    deployment.provider !== "deployment-marker" ||
+    deployment.providerRecordId !== deploymentEvidence.value ||
+    deployment.evidenceId !== deploymentEvidence.evidenceId ||
+    deployment.sourceUrl !== QUIETOPS_LIVE_DEPLOYMENT_TARGET.markerUrl ||
+    !deployment.fetchedAt ||
+    Number.isNaN(Date.parse(deployment.fetchedAt)) ||
+    deployment.externalMutations !== 0
+  ) {
+    return false;
+  }
+  try {
+    return new URL(deployment.sourceUrl).protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function policyMatchesLiveEvidence(
+  policy: ReleaseSliceResult["policy"],
+  evidence: readonly EvidenceObservation[],
+): boolean {
+  const source = evidence[0];
+  if (!source || source.kind !== "Source revision") return false;
+  const expected = evaluateReleaseMismatch(source.value, evidence);
+  return JSON.stringify(policy) === JSON.stringify(expected);
+}
+
+function policyProjectionMatchesLiveEvidence(
+  outcome: EvaluationOutcome,
+  reason: string,
+  evidenceIds: readonly string[],
+  allowedHumanDecisions: readonly HumanDecision[],
+  evidence: readonly EvidenceObservation[],
+): boolean {
+  const source = evidence[0];
+  if (!source || source.kind !== "Source revision") return false;
+  const expected = evaluateReleaseMismatch(source.value, evidence);
+  return (
+    outcome === expected.outcome &&
+    reason === expected.reason &&
+    JSON.stringify(evidenceIds) === JSON.stringify(expected.evidenceIds) &&
+    JSON.stringify(allowedHumanDecisions) ===
+      JSON.stringify(expected.allowedHumanDecisions)
+  );
 }
 
 function readStringArray(record: JsonObject, key: string): readonly string[] {

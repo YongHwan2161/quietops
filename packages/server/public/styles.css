@@ -212,6 +212,102 @@ h1 {
   display: block;
 }
 
+.verification-runner {
+  display: grid;
+  grid-template-columns: minmax(260px, 1.2fr) minmax(250px, 0.9fr) minmax(
+      220px,
+      0.8fr
+    );
+  gap: 24px;
+  align-items: center;
+  margin: 18px 0;
+  padding: 26px;
+  border: 1px solid rgba(143, 255, 193, 0.3);
+  border-radius: 20px;
+  background: linear-gradient(
+    135deg,
+    rgba(143, 255, 193, 0.09),
+    rgba(137, 191, 255, 0.04) 58%,
+    rgba(14, 18, 21, 0.82)
+  );
+  box-shadow: 0 18px 70px rgba(0, 0, 0, 0.2);
+}
+
+.verification-copy h2 {
+  margin-bottom: 9px;
+  font-size: 24px;
+  letter-spacing: -0.035em;
+}
+
+.verification-copy > p:last-child,
+.verification-action p {
+  margin-bottom: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.verification-chain {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: verification-step;
+}
+
+.verification-chain li {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  color: #bdc8cc;
+  font-size: 12px;
+  counter-increment: verification-step;
+}
+
+.verification-chain li::before {
+  display: grid;
+  width: 23px;
+  height: 23px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid rgba(143, 255, 193, 0.22);
+  border-radius: 8px;
+  color: var(--mint);
+  background: rgba(143, 255, 193, 0.06);
+  content: counter(verification-step);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.verification-action {
+  display: grid;
+  gap: 10px;
+}
+
+.verify-button {
+  padding: 13px 16px;
+  border: 1px solid rgba(143, 255, 193, 0.46);
+  border-radius: 12px;
+  color: #07130d;
+  background: var(--mint);
+  box-shadow: 0 10px 30px rgba(50, 216, 133, 0.15);
+  font-size: 12px;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.verify-button:hover,
+.verify-button:focus-visible {
+  transform: translateY(-1px);
+  filter: brightness(1.04);
+}
+
+.verify-button:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
 .release-proof-copy strong {
   margin-bottom: 5px;
   font-size: 13px;
@@ -728,6 +824,25 @@ h1 {
   white-space: nowrap;
 }
 
+.telemetry-meta,
+.receipt-source {
+  display: block;
+  margin-top: 8px;
+  color: #748087;
+  font-size: 9px;
+  line-height: 1.4;
+}
+
+.receipt-source {
+  color: var(--blue);
+  text-decoration: none;
+}
+
+.receipt-source:hover,
+.receipt-source:focus-visible {
+  text-decoration: underline;
+}
+
 .telemetry-item strong {
   margin-bottom: 6px;
   font-size: 11px;
@@ -808,6 +923,10 @@ h1 {
   }
 
   .release-proof {
+    grid-template-columns: 1fr;
+  }
+
+  .verification-runner {
     grid-template-columns: 1fr;
   }
 

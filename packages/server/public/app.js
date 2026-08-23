@@ -4,12 +4,13 @@ const state = {
   selected: null,
   busy: false,
   decisionMode: "public-read-only",
+  liveVerificationEnabled: false,
 };
 
 const inbox = document.querySelector("#inbox");
 const detail = document.querySelector("#detail");
 const refreshButton = document.querySelector("#refresh-button");
-const attentionCount = document.querySelector("#attention-count");
+const liveCount = document.querySelector("#live-count");
 const readyCount = document.querySelector("#ready-count");
 const toast = document.querySelector("#toast");
 const runtimeMode = document.querySelector("#runtime-mode");
@@ -17,8 +18,11 @@ const releaseProof = document.querySelector(".release-proof");
 const releaseProofStatus = document.querySelector("#release-proof-status");
 const releaseRepository = document.querySelector("#release-repository");
 const releaseCommit = document.querySelector("#release-commit");
+const verifyButton = document.querySelector("#verify-button");
+const verifyStatus = document.querySelector("#verify-status");
 
 refreshButton.addEventListener("click", () => void loadInbox(state.selectedId));
+verifyButton.addEventListener("click", () => void runLiveVerification());
 
 void loadReleaseMarker();
 void loadInbox();
@@ -51,6 +55,13 @@ async function loadInbox(preferredId) {
       payload.capabilities?.decisionMode === "local-interactive"
         ? "local-interactive"
         : "public-read-only";
+    state.liveVerificationEnabled =
+      payload.capabilities?.liveVerification?.enabled === true;
+    verifyButton.disabled = !state.liveVerificationEnabled;
+    if (!state.liveVerificationEnabled) {
+      verifyStatus.textContent =
+        "Live verification becomes available when a release identity is configured.";
+    }
     renderRuntimeMode();
     const preferredExists = state.items.some(
       (item) => item.evaluationId === preferredId,
@@ -86,11 +97,12 @@ async function loadDetail(evaluationId) {
 }
 
 function renderSummary() {
-  attentionCount.textContent = String(
-    state.items.filter((item) => item.attentionRequired).length,
+  const liveItems = state.items.filter(
+    (item) => item.scenario === "live-release-verification",
   );
+  liveCount.textContent = String(liveItems.length);
   readyCount.textContent = String(
-    state.items.filter((item) => item.outcome === "Ready").length,
+    liveItems.filter((item) => item.outcome === "Ready").length,
   );
 }
 
@@ -98,16 +110,20 @@ function renderRuntimeMode() {
   runtimeMode.textContent =
     state.decisionMode === "local-interactive"
       ? "Local evidence mode · interactive"
-      : "Live app · preserved demo case · decisions locked";
+      : "Live release verifier · read-only";
 }
 
 function renderInbox() {
   inbox.replaceChildren();
-  const attention = state.items.filter((item) => item.attentionRequired);
-  const recent = state.items.filter((item) => !item.attentionRequired);
+  const live = state.items.filter(
+    (item) => item.scenario === "live-release-verification",
+  );
+  const preserved = state.items.filter(
+    (item) => item.scenario !== "live-release-verification",
+  );
 
-  addInboxSection("Needs attention", attention);
-  addInboxSection("Recent history", recent);
+  addInboxSection("Live verification receipts", live);
+  addInboxSection("Preserved examples", preserved);
 }
 
 function addInboxSection(label, items) {
@@ -179,9 +195,15 @@ function renderDetail() {
   const detailTitle = evaluation.decision
     ? "Human decision preserved"
     : evaluation.outcome === "Ready"
-      ? "Release evidence aligned"
-      : "Deployment identity drift";
-  if (state.decisionMode === "public-read-only") {
+      ? "Release identity verified"
+      : evaluation.outcome === "Could not complete"
+        ? "Evidence chain incomplete"
+        : "Deployment identity drift";
+  if (evaluation.scenario === "live-release-verification") {
+    headingCopy.append(
+      element("p", "eyebrow record-context", "LIVE VERIFICATION"),
+    );
+  } else if (state.decisionMode === "public-read-only") {
     headingCopy.append(
       element("p", "eyebrow record-context", "PRESERVED DEMO CASE"),
     );
@@ -409,6 +431,22 @@ function renderTelemetry(evaluation) {
       element("strong", "", call.toolName),
       element("code", "", call.evidenceId),
     );
+    if (call.provider) {
+      item.append(
+        element(
+          "span",
+          "telemetry-meta",
+          `${call.provider}${call.fetchedAt ? ` · ${formatDate(call.fetchedAt)}` : ""}`,
+        ),
+      );
+    }
+    if (call.sourceUrl) {
+      const source = element("a", "receipt-source", "Open provider receipt ↗");
+      source.href = call.sourceUrl;
+      source.target = "_blank";
+      source.rel = "noopener noreferrer";
+      item.append(source);
+    }
     grid.append(item);
   }
   section.append(grid);
@@ -452,6 +490,33 @@ async function submitDecision(evaluationId, decision, note) {
   }
 }
 
+async function runLiveVerification() {
+  if (state.busy || !state.liveVerificationEnabled) return;
+  setBusy(true);
+  verifyStatus.textContent =
+    "Strands is reading GitHub source, required CI, and the running revision…";
+  try {
+    const payload = await requestJson("/api/live-verifications", {
+      method: "POST",
+    });
+    verifyStatus.textContent = payload.receipt.replayed
+      ? "Verified receipt replayed for this deployed commit—no duplicate evidence record was written."
+      : "Fresh evidence chain persisted. Open the selected receipt below.";
+    showToast(
+      payload.receipt.replayed
+        ? "Existing live verification receipt replayed."
+        : "Live release verification completed.",
+    );
+    await loadInbox(payload.receipt.evaluationId);
+  } catch (error) {
+    verifyStatus.textContent =
+      "Verification failed closed. No release-ready claim was produced.";
+    showToast(errorMessage(error), true);
+  } finally {
+    setBusy(false);
+  }
+}
+
 async function requestJson(path, options) {
   const response = await fetch(path, options);
   const payload = await response.json();
@@ -466,6 +531,7 @@ async function requestJson(path, options) {
 function setBusy(busy) {
   state.busy = busy;
   refreshButton.disabled = busy;
+  verifyButton.disabled = busy || !state.liveVerificationEnabled;
   for (const button of document.querySelectorAll(
     ".action-button, .inbox-item",
   )) {

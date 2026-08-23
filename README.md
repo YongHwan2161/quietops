@@ -1,10 +1,10 @@
 # QuietOps
 
-QuietOps is a Strands-powered release evidence chain for solo developers and small software teams. It binds reviewed source, CI results, the deployed revision, and browser evidence into one auditable record, then refuses `Ready` when any link is missing or contradictory.
+QuietOps is a Strands-powered release identity verifier for solo developers and small software teams. It binds reviewed source, required CI, and the deployed revision into one auditable record, then refuses `Ready` when any link is missing or contradictory.
 
 **Live read-only demo:** [quietops-production.up.railway.app](https://quietops-production.up.railway.app)
 
-> Current boundary: the public Railway deployment exposes a strict release marker and a preserved Ready/mismatch demonstration in read-only mode. The live GitHub and deployment collectors are independently verified, but they are not yet wired into one live end-to-end evaluation. The browser records remain synthetic demonstration evidence, and no live AWS/Bedrock or AgentCore verification evidence exists.
+> Current boundary: the successor branch now wires the bounded GitHub and Railway collectors into one user-started, persisted Strands verification with deterministic policy and per-deployed-commit replay. This integrated path is locally verified but is not present on the public Railway deployment until successor CI, merge, deployment, and public-browser checks pass. Browser-behavior collection, live AWS/Bedrock, and AgentCore remain unverified.
 
 ## The core idea
 
@@ -14,13 +14,14 @@ A green CI badge proves that one commit passed one workflow. It does not prove t
 
 QuietOps makes the question explicit: **is the exact code we reviewed the code users are running?** Strands gathers bounded read-only observations; deterministic policy decides whether the required evidence is complete and aligned; the append-only ledger preserves what was observed; and a human retains authority over the exception. Observation, policy, and authorization remain separate records.
 
-## Planned product flow
+## Product flow
 
-1. Identify one release candidate by repository, branch, commit, and deployment URL.
-2. Collect approved read-only source, CI, deployment, and browser evidence.
-3. Evaluate required gates with deterministic policy.
-4. Produce a concise `Ready`, `Needs decision`, or `Could not complete` recommendation.
-5. Preserve evidence, recommendation, and any human decision as distinct records.
+1. Identify one allowlisted release target by repository, branch, required workflow, and deployment marker.
+2. A user starts `Verify this live release` from the public site.
+3. Collect source revision, required CI result, and deployment marker through exactly three read-only Strands tools.
+4. Evaluate the evidence with deterministic policy.
+5. Produce a concise `Ready`, `Needs decision`, or `Could not complete` recommendation.
+6. Persist provider receipts once per deployed commit and replay the same record on repeat requests.
 
 ## Planning documents
 
@@ -35,6 +36,7 @@ QuietOps makes the question explicit: **is the exact code we reviewed the code u
 - [Stage 4B-0 live GitHub evidence verification](docs/LIVE_GITHUB_EVIDENCE_2026-08-22.md)
 - [Stage 4B-1 live GitHub Strands/ledger verification](docs/LIVE_GITHUB_STRANDS_LEDGER_2026-08-22.md)
 - [Stage 4B-2 deployment-marker collector verification](docs/DEPLOYMENT_MARKER_COLLECTOR_2026-08-22.md)
+- [Stage 4B-3 interactive live-verifier verification](docs/INTERACTIVE_LIVE_VERIFIER_2026-08-23.md)
 - [Hosting-target decision and external gate](docs/HOSTING_TARGET_DECISION_2026-08-22.md)
 - [Stage 4C-1a public-demo decision boundary](docs/PUBLIC_DEMO_DECISION_BOUNDARY_2026-08-22.md)
 - [Stage 4C-1b host, port, and health boundary](docs/HOST_PORT_HEALTH_BOUNDARY_2026-08-22.md)
@@ -49,10 +51,10 @@ QuietOps makes the question explicit: **is the exact code we reviewed the code u
 
 ## Current status
 
-- Active increment: post-Stage 4C-1f live public-demo proof and product-message clarification; the broader Stage 1, Stage 2, Stage 4, and Stage 5 plans remain incomplete
-- Implementation: candidate identity, shared vocabulary, bounded Ready/mismatch Strands paths, an optional Bedrock model path for mismatch, a separate live GitHub Strands path, an append-only SQLite ledger, idempotent human decisions, re-check lineage, inbox/detail/timeline projections, and a locally verified deployment-marker collector
-- Browser and API: the guarded Fastify server defaults to loopback and exposes inbox, detail, decision, liveness, and optionally exact-commit release-marker endpoints. `local-interactive` mode preserves Reject/Re-check and lineage; non-loopback binding requires `public-read-only`, a full release commit, and an external absolute database path, while the public browser removes decision controls and valid decision writes receive a stable `403` response.
-- Live GitHub validation: two bounded Strands tools share one public source/CI collection and preserve exact provider receipts in SQLite. The existing live application flow still returns `Could not complete` because the deployment collector is not yet registered in that agent/application path; the browser still uses preserved demonstration scenarios.
+- Active increment: Stage 4B-3 interactive live release verifier; browser-behavior evidence, background execution, live AWS, and broader Stage 5 work remain incomplete
+- Implementation: candidate identity, bounded Ready/mismatch Strands paths, a three-tool live source/CI/deployment path, deterministic policy, an append-only SQLite ledger, per-release idempotent replay, human-decision lineage for preserved mismatch cases, inbox/detail projections, and provider receipt links
+- Browser and API: the guarded Fastify server defaults to loopback and exposes inbox, detail, live-verification, decision, liveness, and optionally exact-commit release-marker endpoints. A configured release identity enables the fixed-target `POST /api/live-verifications`; public mode still rejects human decision writes and exposes no arbitrary repository or URL input.
+- Live integration status: the complete GitHub source → required CI → Railway marker → policy → SQLite path passes both injected tests and one actual provider-backed local browser journey. It returned `Ready` for predecessor commit `1edbded139c0e7e8ec6e90e9d8f8ee57353ea41a`, CI run `32562992913`, and the matching Railway marker, then replayed the same evaluation on the second request. The new UI and endpoint remain a local successor claim until deployed and invoked on the public domain.
 - Deployment-marker validation: the construction-bound collector performed one bounded unauthenticated GET against the live Railway marker, accepted repository `YongHwan2161/quietops` and full commit `1edbded139c0e7e8ec6e90e9d8f8ee57353ea41a`, and returned `Verified` with `externalMutations: 0`.
 - Hosting target: Railway is live in guarded `public-read-only` mode with one persistent volume, one replica in US West, a `/health` check, and the generated HTTPS domain `quietops-production.up.railway.app`.
 - Live AWS/Bedrock validation: not performed for this repository
@@ -79,7 +81,7 @@ npm run demo:web
 
 Set `QUIETOPS_DECISION_MODE=public-read-only` to exercise the fail-closed shared-demo view locally. The inbox and evidence remain visible, but the browser exposes no Reject/Re-check controls and the API returns `PUBLIC_DEMO_READ_ONLY` for otherwise valid decision writes. Omitting the setting keeps the existing `local-interactive` judge workflow.
 
-The CLI defaults to `127.0.0.1:4173` and the repository-local `.quietops/quietops.sqlite`. A platform-style public bind additionally requires `QUIETOPS_HOST=0.0.0.0`, `PORT=<1-65535>`, `QUIETOPS_DECISION_MODE=public-read-only`, `QUIETOPS_RELEASE_COMMIT=<40 lowercase hex>`, and an absolute `QUIETOPS_DB_PATH` outside the application repository, such as `/data/quietops.sqlite`. `QUIETOPS_PORT` remains a local alias; if both port variables are set, their parsed values must match. `GET /health` is a no-store process-liveness check only. When a release commit is configured, `GET /.well-known/quietops-release.json` returns the strict repository/commit marker consumed by the bounded deployment adapter.
+The CLI defaults to `127.0.0.1:4173` and the repository-local `.quietops/quietops.sqlite`. A platform-style public bind additionally requires `QUIETOPS_HOST=0.0.0.0`, `PORT=<1-65535>`, `QUIETOPS_DECISION_MODE=public-read-only`, `QUIETOPS_RELEASE_COMMIT=<40 lowercase hex>`, and an absolute `QUIETOPS_DB_PATH` outside the application repository, such as `/data/quietops.sqlite`. `QUIETOPS_PORT` remains a local alias; if both port variables are set, their parsed values must match. `GET /health` is a no-store process-liveness check only. When a release commit is configured, `GET /.well-known/quietops-release.json` returns the strict repository/commit marker and enables the fixed-target live-verification endpoint. The browser cannot select another repository or deployment URL.
 
 Production-style execution is an explicit two-command contract: run `npm run build` during the build phase, then run `npm start` to execute only the prebuilt `@quietops/server` CLI. `npm start` does not install dependencies, compile TypeScript, migrate storage, invent environment defaults for a public bind, or create a hosting resource.
 

@@ -148,9 +148,38 @@ export async function createQuietOpsServer(
   }
 
   app.get("/api/inbox", async () => ({
-    capabilities: Object.freeze({ decisionMode }),
+    capabilities: Object.freeze({
+      decisionMode,
+      liveVerification: Object.freeze({
+        enabled: releaseCommit !== undefined,
+        repository: QUIETOPS_REPOSITORY,
+        branch: "main",
+      }),
+    }),
     items: service.listInbox(),
   }));
+
+  app.post("/api/live-verifications", async (_request, reply) => {
+    if (!releaseCommit) {
+      sendError(
+        reply,
+        503,
+        "LIVE_VERIFICATION_NOT_CONFIGURED",
+        "Live release verification requires a configured release identity.",
+      );
+      return;
+    }
+    const result = await service.startLiveReleaseVerification(
+      `release:${releaseCommit}`,
+    );
+    return {
+      receipt: Object.freeze({
+        evaluationId: result.evaluation.evaluationId,
+        replayed: result.replayed,
+      }),
+      evaluation: result.evaluation,
+    };
+  });
 
   app.get<{ Params: EvaluationParams }>(
     "/api/evaluations/:evaluationId",

@@ -89,6 +89,15 @@ Stage 4B-2 establishes the deployment-observation boundary without claiming a de
 - Missing, malformed, oversized, redirected, non-HTTPS, credential-bearing, queried, fragmented, or timed-out reads fail closed.
 - The collector is not yet a Strands tool and no real deployment URL has been selected, so it cannot change a live evaluation outcome.
 
+Stage 4B-3 turns the bounded evidence seams into a user-operable product slice:
+
+- The public page offers one `Verify this live release` action for the fixed QuietOps repository and Railway deployment; the browser cannot supply a target.
+- One Strands invocation calls source, required CI, and deployment-marker tools exactly once under a three-call allowlist.
+- Deterministic policy alone returns `Ready`, `Needs decision`, or `Could not complete`; model narration cannot override the observations.
+- The application persists provider URLs, record IDs, fetch times, evidence IDs, and hard-zero mutation receipts in SQLite.
+- Repeating the action for the same configured deployment commit replays the original evaluation instead of appending another record or re-running providers.
+- Preserved Ready/mismatch examples remain explicitly separated from user-started live receipts.
+
 Stage 4C-1a establishes the public-demo write boundary without claiming a hosted demo:
 
 - `local-interactive` preserves the existing credential-free judge workflow and bounded Reject/Re-check decisions.
@@ -116,4 +125,4 @@ Stage 4C-1d establishes the persistent-path boundary without claiming a managed 
 - Missing, relative, repository-local, empty, or NUL-containing public paths fail before directory creation, database construction, or network listening.
 - Reopening the same external SQLite file must preserve evaluation identities; this proves local process persistence only, not Railway volume durability.
 
-This slice does not satisfy the full P0 boundary by itself. Pending/checking progress, stale evidence, resumable SSE, export consistency, authentication, live deployment/browser evidence integration, background execution, and a fully live browser journey remain unimplemented.
+This slice does not satisfy the full P0 boundary by itself. Public deployment and browser proof of Stage 4B-3, browser-behavior evidence, stale-evidence policy, resumable SSE, export consistency, authentication, and background execution remain separate work.

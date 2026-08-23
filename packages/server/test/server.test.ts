@@ -4,6 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
+import { runLiveReleaseVerification } from "@quietops/agent";
+
 import { createQuietOpsServer } from "../src/index.js";
 
 const RELEASE_COMMIT = "924686c12afbcd437466fd56d0ea24be8df36696";
@@ -71,10 +73,90 @@ test("serves one persisted Ready and mismatch workflow over HTTP", async () => {
     assert.match(browserResponse.body, /Release evidence chain/);
     assert.match(browserResponse.body, /Prove the code you reviewed/);
     assert.match(browserResponse.body, /Live deployment identity/);
+    assert.match(browserResponse.body, /Verify this live release/);
     assert.doesNotMatch(browserResponse.body, /<script[^>]*>[^<]/);
   } finally {
     await app.close();
     await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("lets a public visitor run and replay the fixed live release verification", async () => {
+  let runnerCalls = 0;
+  const app = await createQuietOpsServer({
+    decisionMode: "public-read-only",
+    releaseCommit: RELEASE_COMMIT,
+    evaluationServiceOptions: {
+      runLiveReleaseVerification: () => {
+        runnerCalls += 1;
+        return runLiveReleaseVerification({
+          githubCollector: async () => liveGitHubBundle(),
+          deploymentCollector: async () => liveDeploymentBundle(),
+        });
+      },
+    },
+  });
+
+  try {
+    const before = (
+      await app.inject({ method: "GET", url: "/api/inbox" })
+    ).json<{
+      capabilities: { liveVerification: { enabled: boolean } };
+      items: unknown[];
+    }>();
+    assert.equal(before.capabilities.liveVerification.enabled, true);
+    assert.equal(before.items.length, 0);
+
+    const firstResponse = await app.inject({
+      method: "POST",
+      url: "/api/live-verifications",
+    });
+    const replayResponse = await app.inject({
+      method: "POST",
+      url: "/api/live-verifications",
+    });
+    assert.equal(firstResponse.statusCode, 200);
+    assert.equal(replayResponse.statusCode, 200);
+
+    const first = firstResponse.json<{
+      receipt: { evaluationId: string; replayed: boolean };
+      evaluation: {
+        scenario: string;
+        outcome: string;
+        evidence: unknown[];
+        toolCalls: Array<{ provider: string }>;
+        externalMutations: number;
+      };
+    }>();
+    const replay = replayResponse.json<typeof first>();
+    assert.equal(runnerCalls, 1);
+    assert.equal(first.receipt.replayed, false);
+    assert.equal(replay.receipt.replayed, true);
+    assert.equal(replay.receipt.evaluationId, first.receipt.evaluationId);
+    assert.equal(first.evaluation.scenario, "live-release-verification");
+    assert.equal(first.evaluation.outcome, "Ready");
+    assert.equal(first.evaluation.evidence.length, 3);
+    assert.equal(first.evaluation.toolCalls[2]?.provider, "deployment-marker");
+    assert.equal(first.evaluation.externalMutations, 0);
+  } finally {
+    await app.close();
+  }
+});
+
+test("fails a live verification request closed when release identity is absent", async () => {
+  const app = await createQuietOpsServer();
+  try {
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/live-verifications",
+    });
+    assert.equal(response.statusCode, 503);
+    assert.equal(
+      response.json().error.code,
+      "LIVE_VERIFICATION_NOT_CONFIGURED",
+    );
+  } finally {
+    await app.close();
   }
 });
 
@@ -327,3 +409,55 @@ test("serves a strict no-store release marker only when configured", async () =>
     /releaseCommit must be 40 lowercase hexadecimal characters/,
   );
 });
+
+function liveGitHubBundle() {
+  const fetchedAt = "2026-08-23T06:00:00.000Z";
+  return Object.freeze({
+    target: Object.freeze({
+      repository: "YongHwan2161/quietops",
+      ref: "main",
+      requiredWorkflow: "Verify",
+    }),
+    source: Object.freeze({
+      evidenceId: `github-commit:${RELEASE_COMMIT}`,
+      kind: "Source revision" as const,
+      status: "Verified" as const,
+      value: RELEASE_COMMIT,
+      sourceUrl: `https://github.com/YongHwan2161/quietops/commit/${RELEASE_COMMIT}`,
+      fetchedAt,
+    }),
+    ci: Object.freeze({
+      evidenceId: "github-actions-run:1",
+      kind: "CI status" as const,
+      status: "Verified" as const,
+      value: "success",
+      sourceUrl: "https://github.com/YongHwan2161/quietops/actions/runs/1",
+      fetchedAt,
+      workflowName: "Verify",
+      runId: 1,
+      headSha: RELEASE_COMMIT,
+      completedAt: fetchedAt,
+    }),
+    externalMutations: 0 as const,
+  });
+}
+
+function liveDeploymentBundle() {
+  const markerUrl =
+    "https://quietops-production.up.railway.app/.well-known/quietops-release.json";
+  return Object.freeze({
+    target: Object.freeze({
+      repository: "YongHwan2161/quietops" as const,
+      markerUrl,
+    }),
+    deployment: Object.freeze({
+      evidenceId: `deployment-marker:${RELEASE_COMMIT}`,
+      kind: "Deployed revision" as const,
+      status: "Verified" as const,
+      value: RELEASE_COMMIT,
+      sourceUrl: markerUrl,
+      fetchedAt: "2026-08-23T06:00:01.000Z",
+    }),
+    externalMutations: 0 as const,
+  });
+}

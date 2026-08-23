@@ -1,5 +1,7 @@
 # Live Public Demo and Deployment-Marker Verification — 2026-08-23
 
+> Successor note: Stage 4B-3 now composes the three live evidence seams behind a user-started verification action on the successor branch. This historical record remains the proof for the predecessor deployment; see `INTERACTIVE_LIVE_VERIFIER_2026-08-23.md` for the successor gate.
+
 ## Outcome
 
 `LIVE_READ_ONLY_VERIFIED` — the guarded Railway service is publicly reachable, exposes the exact release identity expected by the bounded deployment collector, and keeps shared decisions locked.

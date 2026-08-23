@@ -2,6 +2,7 @@ export {
   createQuietOpsServer,
   type CreateQuietOpsServerOptions,
   type DecisionMode,
+  type GitHubWebhookServerOptions,
 } from "./server.js";
 export {
   resolveQuietOpsRuntimeConfig,

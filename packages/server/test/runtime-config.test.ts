@@ -24,6 +24,7 @@ test("defaults to the local interactive loopback runtime", () => {
     port: 4173,
     decisionMode: "local-interactive",
     databasePath: resolve(REPOSITORY_ROOT, ".quietops/quietops.sqlite"),
+    githubWebhookEnabled: false,
   });
 });
 
@@ -41,6 +42,7 @@ test("accepts a public read-only platform binding", () => {
       port: 8080,
       decisionMode: "public-read-only",
       databasePath: PUBLIC_DATABASE_PATH,
+      githubWebhookEnabled: false,
       releaseCommit: COMMIT,
     },
   );
@@ -155,6 +157,46 @@ test("rejects an unknown decision mode or invalid release commit", () => {
           QUIETOPS_RELEASE_COMMIT: releaseCommit,
         }),
       /QUIETOPS_RELEASE_COMMIT must be 40 lowercase hexadecimal characters/,
+    );
+  }
+});
+
+test("keeps GitHub webhook intake default-off and requires a bounded secret", () => {
+  const secret = "quietops-runtime-webhook-secret-32-bytes-minimum";
+  assert.deepEqual(
+    resolveConfig({
+      QUIETOPS_GITHUB_WEBHOOK_ENABLED: "true",
+      QUIETOPS_GITHUB_WEBHOOK_SECRET: secret,
+    }),
+    {
+      host: "127.0.0.1",
+      port: 4173,
+      decisionMode: "local-interactive",
+      databasePath: resolve(REPOSITORY_ROOT, ".quietops/quietops.sqlite"),
+      githubWebhookEnabled: true,
+      githubWebhookSecret: secret,
+    },
+  );
+
+  assert.equal(
+    resolveConfig({ QUIETOPS_GITHUB_WEBHOOK_SECRET: secret })
+      .githubWebhookEnabled,
+    false,
+  );
+  for (const value of ["TRUE", "1", "yes", ""]) {
+    assert.throws(
+      () => resolveConfig({ QUIETOPS_GITHUB_WEBHOOK_ENABLED: value }),
+      /must be true or false/,
+    );
+  }
+  for (const secretValue of [undefined, "short", ` ${secret}`, `${secret}\n`]) {
+    assert.throws(
+      () =>
+        resolveConfig({
+          QUIETOPS_GITHUB_WEBHOOK_ENABLED: "true",
+          QUIETOPS_GITHUB_WEBHOOK_SECRET: secretValue,
+        }),
+      /requires a 32-256 byte QUIETOPS_GITHUB_WEBHOOK_SECRET/,
     );
   }
 });

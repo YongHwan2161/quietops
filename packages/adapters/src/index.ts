@@ -21,3 +21,16 @@ export {
   type DeploymentEvidenceTarget,
   type DeploymentRevisionObservation,
 } from "./deployment-marker.js";
+
+export {
+  GitHubWebhookAuthenticationError,
+  GitHubWebhookRequestError,
+  MAX_GITHUB_WEBHOOK_BODY_BYTES,
+  QUIETOPS_GITHUB_WEBHOOK_TARGET,
+  inspectGitHubPushWebhook,
+  verifyGitHubWebhookSignature,
+  type GitHubPushWebhookInspection,
+  type GitHubWebhookRejectionReason,
+  type GitHubWebhookRequestErrorCode,
+  type InspectGitHubPushWebhookInput,
+} from "./github-webhook.js";

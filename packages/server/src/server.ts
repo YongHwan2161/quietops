@@ -1,6 +1,13 @@
 import { readFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 
+import {
+  GitHubWebhookAuthenticationError,
+  GitHubWebhookRequestError,
+  MAX_GITHUB_WEBHOOK_BODY_BYTES,
+  inspectGitHubPushWebhook,
+} from "@quietops/adapters";
 import {
   DecisionNotAllowedError,
   EvaluationAlreadyResolvedError,
@@ -8,14 +15,17 @@ import {
   EvaluationService,
   type EvaluationServiceOptions,
 } from "@quietops/application";
+import { resolvePolicyProfile } from "@quietops/contracts";
 import {
   IdempotencyConflictError,
   SQLiteEvaluationLedger,
+  SQLiteReleaseRunLedger,
 } from "@quietops/storage";
 import Fastify, {
   type FastifyError,
   type FastifyInstance,
   type FastifyReply,
+  type FastifyServerOptions,
 } from "fastify";
 
 const PUBLIC_FILES = Object.freeze({
@@ -55,13 +65,19 @@ interface DecisionBody {
   readonly note?: string;
 }
 
+export interface GitHubWebhookServerOptions {
+  readonly secret: string;
+  readonly now?: () => Date;
+}
+
 export interface CreateQuietOpsServerOptions {
   readonly databasePath?: string;
   readonly seedDemo?: boolean;
   readonly evaluationServiceOptions?: EvaluationServiceOptions;
-  readonly logger?: boolean;
+  readonly logger?: FastifyServerOptions["logger"];
   readonly decisionMode?: DecisionMode;
   readonly releaseCommit?: string;
+  readonly githubWebhook?: GitHubWebhookServerOptions;
 }
 
 export type DecisionMode = "local-interactive" | "public-read-only";
@@ -71,7 +87,11 @@ export async function createQuietOpsServer(
 ): Promise<FastifyInstance> {
   const decisionMode = normalizeDecisionMode(options.decisionMode);
   const releaseCommit = normalizeReleaseCommit(options.releaseCommit);
+  const githubWebhook = normalizeGitHubWebhook(options.githubWebhook);
   const ledger = new SQLiteEvaluationLedger(options.databasePath);
+  const releaseRunLedger = githubWebhook
+    ? new SQLiteReleaseRunLedger(options.databasePath)
+    : undefined;
   const service = new EvaluationService(
     ledger,
     options.evaluationServiceOptions,
@@ -87,6 +107,7 @@ export async function createQuietOpsServer(
   });
 
   app.addHook("onClose", () => {
+    releaseRunLedger?.close();
     ledger.close();
   });
 
@@ -112,6 +133,43 @@ export async function createQuietOpsServer(
         400,
         "INVALID_REQUEST",
         "The request did not match the API contract.",
+      );
+      return;
+    }
+    if (error instanceof GitHubWebhookAuthenticationError) {
+      sendError(reply, 401, error.code, error.message);
+      return;
+    }
+    if (error instanceof GitHubWebhookRequestError) {
+      sendError(
+        reply,
+        error.code === "GITHUB_WEBHOOK_BODY_TOO_LARGE" ? 413 : 400,
+        error.code,
+        error.message,
+      );
+      return;
+    }
+    if (error.code === "FST_ERR_CTP_BODY_TOO_LARGE") {
+      const isWebhook = request.routeOptions.url === "/api/github/webhooks";
+      sendError(
+        reply,
+        413,
+        isWebhook ? "GITHUB_WEBHOOK_BODY_TOO_LARGE" : "REQUEST_BODY_TOO_LARGE",
+        isWebhook
+          ? "The GitHub webhook body exceeds 256 KiB."
+          : "The request body exceeds the configured limit.",
+      );
+      return;
+    }
+    if (
+      error.code === "FST_ERR_CTP_INVALID_MEDIA_TYPE" &&
+      request.routeOptions.url === "/api/github/webhooks"
+    ) {
+      sendError(
+        reply,
+        415,
+        "GITHUB_WEBHOOK_CONTENT_TYPE_REQUIRED",
+        "GitHub webhook intake requires application/json.",
       );
       return;
     }
@@ -145,6 +203,75 @@ export async function createQuietOpsServer(
       repository: QUIETOPS_REPOSITORY,
       commit: releaseCommit,
     }));
+  }
+
+  if (githubWebhook && releaseRunLedger) {
+    app.register(async (webhookApp) => {
+      webhookApp.removeContentTypeParser("application/json");
+      webhookApp.addContentTypeParser(
+        "application/json",
+        { parseAs: "buffer" },
+        (_request, body, done) => done(null, body),
+      );
+
+      webhookApp.post<{
+        Body: Buffer;
+      }>(
+        "/api/github/webhooks",
+        { bodyLimit: MAX_GITHUB_WEBHOOK_BODY_BYTES },
+        async (request, reply) => {
+          if (!hasJsonContentType(request.headers["content-type"])) {
+            sendError(
+              reply,
+              415,
+              "GITHUB_WEBHOOK_CONTENT_TYPE_REQUIRED",
+              "GitHub webhook intake requires application/json.",
+            );
+            return;
+          }
+          if (!Buffer.isBuffer(request.body)) {
+            sendError(
+              reply,
+              400,
+              "GITHUB_WEBHOOK_INVALID_BODY",
+              "GitHub webhook intake requires a bounded raw body.",
+            );
+            return;
+          }
+
+          const inspection = inspectGitHubPushWebhook({
+            rawBody: request.body,
+            secret: githubWebhook.secret,
+            signature: readSingleHeader(request.headers["x-hub-signature-256"]),
+            event: readSingleHeader(request.headers["x-github-event"]),
+            deliveryId: readSingleHeader(request.headers["x-github-delivery"]),
+          });
+          if (!inspection.accepted) {
+            return reply.code(202).send({
+              accepted: false,
+              reason: inspection.reason,
+            });
+          }
+
+          const identity = webhookIdentity(inspection.deliveryId);
+          const result = releaseRunLedger.createRunFromWebhook({
+            runId: identity.runId,
+            triggerEventId: identity.eventId,
+            repository: QUIETOPS_REPOSITORY,
+            branch: "main",
+            candidateCommit: inspection.candidateCommit,
+            triggerDeliveryId: inspection.deliveryId,
+            policyProfile: resolvePolicyProfile("standard-v1"),
+            createdAt: (githubWebhook.now?.() ?? new Date()).toISOString(),
+          });
+          return reply.code(202).send({
+            accepted: true,
+            runId: result.runId,
+            replayed: result.replayed,
+          });
+        },
+      );
+    });
   }
 
   app.get("/api/inbox", async () => ({
@@ -276,6 +403,50 @@ function normalizeReleaseCommit(value: string | undefined): string | undefined {
     );
   }
   return value;
+}
+
+function normalizeGitHubWebhook(
+  value: GitHubWebhookServerOptions | undefined,
+): GitHubWebhookServerOptions | undefined {
+  if (value === undefined) return undefined;
+  const bytes = Buffer.byteLength(value.secret, "utf8");
+  if (
+    value.secret.trim() !== value.secret ||
+    /[\u0000-\u001f\u007f]/.test(value.secret) ||
+    bytes < 32 ||
+    bytes > 256
+  ) {
+    throw new Error(
+      "GitHub webhook secret must be 32-256 bytes without surrounding whitespace or control characters.",
+    );
+  }
+  return Object.freeze({
+    secret: value.secret,
+    ...(value.now ? { now: value.now } : {}),
+  });
+}
+
+function webhookIdentity(deliveryId: string): Readonly<{
+  runId: string;
+  eventId: string;
+}> {
+  const digest = createHash("sha256")
+    .update(`github-delivery:${deliveryId}`)
+    .digest("hex");
+  return Object.freeze({
+    runId: `github:${digest}`,
+    eventId: `github-trigger:${digest}`,
+  });
+}
+
+function readSingleHeader(
+  value: string | readonly string[] | undefined,
+): string | undefined {
+  return typeof value === "string" ? value : undefined;
+}
+
+function hasJsonContentType(value: string | undefined): boolean {
+  return value?.split(";", 1)[0]?.trim().toLowerCase() === "application/json";
 }
 
 const evaluationParamsSchema = Object.freeze({

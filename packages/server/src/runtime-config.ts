@@ -14,6 +14,8 @@ export interface QuietOpsRuntimeConfig {
   readonly decisionMode: DecisionMode;
   readonly databasePath: string;
   readonly releaseCommit?: string;
+  readonly githubWebhookEnabled: boolean;
+  readonly githubWebhookSecret?: string;
 }
 
 export function resolveQuietOpsRuntimeConfig(
@@ -25,6 +27,14 @@ export function resolveQuietOpsRuntimeConfig(
   const port = parsePorts(environment.PORT, environment.QUIETOPS_PORT);
   const decisionMode = parseDecisionMode(environment.QUIETOPS_DECISION_MODE);
   const releaseCommit = parseReleaseCommit(environment.QUIETOPS_RELEASE_COMMIT);
+  const githubWebhookEnabled = parseBooleanFlag(
+    environment.QUIETOPS_GITHUB_WEBHOOK_ENABLED,
+    "QUIETOPS_GITHUB_WEBHOOK_ENABLED",
+  );
+  const githubWebhookSecret = parseWebhookSecret(
+    environment.QUIETOPS_GITHUB_WEBHOOK_SECRET,
+    githubWebhookEnabled,
+  );
   const databasePath = parseDatabasePath(
     environment.QUIETOPS_DB_PATH,
     repositoryRoot,
@@ -47,8 +57,35 @@ export function resolveQuietOpsRuntimeConfig(
     port,
     decisionMode,
     databasePath,
+    githubWebhookEnabled,
     ...(releaseCommit ? { releaseCommit } : {}),
+    ...(githubWebhookSecret ? { githubWebhookSecret } : {}),
   });
+}
+
+function parseBooleanFlag(value: string | undefined, name: string): boolean {
+  if (value === undefined || value === "false") return false;
+  if (value === "true") return true;
+  throw new Error(`${name} must be true or false.`);
+}
+
+function parseWebhookSecret(
+  value: string | undefined,
+  enabled: boolean,
+): string | undefined {
+  if (!enabled) return undefined;
+  if (
+    value === undefined ||
+    value.trim() !== value ||
+    /[\u0000-\u001f\u007f]/.test(value) ||
+    Buffer.byteLength(value, "utf8") < 32 ||
+    Buffer.byteLength(value, "utf8") > 256
+  ) {
+    throw new Error(
+      "Enabled GitHub webhook intake requires a 32-256 byte QUIETOPS_GITHUB_WEBHOOK_SECRET without surrounding whitespace or control characters.",
+    );
+  }
+  return value;
 }
 
 function parseHost(value: string | undefined): QuietOpsRuntimeConfig["host"] {

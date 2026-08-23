@@ -2,7 +2,7 @@
 
 ## Status
 
-`ITEM_2_COMPLETE_ITEM_3_HOLD`
+`ITEM_3_COMPLETE_ITEM_4_HOLD`
 
 This checklist is the implementation contract for the
 [technical specification](AUTONOMOUS_RELEASE_STEWARD_TECHNICAL_SPEC_2026-08-23.md).
@@ -95,7 +95,7 @@ documentation PR is reviewed and the user explicitly advances to the build.
       CAS failure. Restore only the test copy and revert Item 2; never exercise
       rollback against the live volume.
 
-- [ ] **3. Add signed, idempotent GitHub push intake**
+- [x] **3. Add signed, idempotent GitHub push intake**
       Spec ref: `Autonomous Release Steward Technical Spec > Trigger contract`
       What to build: Add the bounded raw-body webhook parser and
       `POST /api/github/webhooks`, behind a default-off runtime flag. Verify

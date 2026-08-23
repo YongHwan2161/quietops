@@ -6,8 +6,15 @@ import { resolveQuietOpsRuntimeConfig } from "./runtime-config.js";
 import { createQuietOpsServer } from "./server.js";
 
 const repositoryRoot = fileURLToPath(new URL("../../../../", import.meta.url));
-const { host, port, decisionMode, databasePath, releaseCommit } =
-  resolveQuietOpsRuntimeConfig(process.env, { repositoryRoot });
+const {
+  host,
+  port,
+  decisionMode,
+  databasePath,
+  releaseCommit,
+  githubWebhookEnabled,
+  githubWebhookSecret,
+} = resolveQuietOpsRuntimeConfig(process.env, { repositoryRoot });
 
 await mkdir(dirname(databasePath), { recursive: true });
 
@@ -15,6 +22,9 @@ const app = await createQuietOpsServer({
   databasePath,
   decisionMode,
   ...(releaseCommit ? { releaseCommit } : {}),
+  ...(githubWebhookEnabled
+    ? { githubWebhook: { secret: githubWebhookSecret! } }
+    : {}),
   seedDemo: true,
   logger: true,
 });
@@ -27,6 +37,7 @@ console.log(
     url: `http://${host}:${port}`,
     databasePath,
     decisionMode,
+    githubWebhookEnabled,
     ...(releaseCommit ? { releaseCommit } : {}),
     externalMutations: 0,
   }),

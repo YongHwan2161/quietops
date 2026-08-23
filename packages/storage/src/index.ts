@@ -12,3 +12,38 @@ export {
   type StoredEvaluationRecord,
   type StoredLedgerEvent,
 } from "./sqlite-evaluation-ledger.js";
+export {
+  SQLITE_SCHEMA_VERSION,
+  applySQLiteMigrations,
+  type SQLiteMigrationOptions,
+  type SQLiteMigrationResult,
+} from "./sqlite-migrations.js";
+export {
+  RELEASE_RUN_EVENT_TYPES,
+  rebuildReleaseRunHead,
+  type NewReleaseRunEvent,
+  type RebuiltReleaseRunHead,
+  type ReleaseRunEventType,
+  type StoredReleaseRunEvent,
+} from "./release-run-event-projection.js";
+export {
+  ExternalActionAlreadyAttemptedError,
+  ReleaseRunConcurrencyError,
+  ReleaseRunStateError,
+  SQLiteReleaseRunLedger,
+  type AppendReleaseRunTransition,
+  type BeginExternalAction,
+  type CreateRunFromWebhook,
+  type CreateRunFromWebhookResult,
+  type FinishExternalAction,
+  type FinishExternalActionResponse,
+  type FinishExternalActionResult,
+  type NextReleaseRunHead,
+  type RecordReleaseDecision,
+  type RecordReleaseDecisionResult,
+  type RecoverAbandonedWorkResult,
+  type ReservedExternalAction,
+  type StoredExternalAction,
+  type StoredReleaseRun,
+  type StoredReleaseRunHead,
+} from "./sqlite-release-run-ledger.js";

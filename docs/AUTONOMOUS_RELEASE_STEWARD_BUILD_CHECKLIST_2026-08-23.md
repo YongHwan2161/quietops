@@ -2,7 +2,7 @@
 
 ## Status
 
-`CHECKLIST_READY_BUILD_HOLD`
+`ITEM_1_COMPLETE_ITEM_2_HOLD`
 
 This checklist is the implementation contract for the
 [technical specification](AUTONOMOUS_RELEASE_STEWARD_TECHNICAL_SPEC_2026-08-23.md).
@@ -54,7 +54,7 @@ documentation PR is reviewed and the user explicitly advances to the build.
 
 ## Checklist
 
-- [ ] **1. Add the release-run contracts and deterministic transition kernel**
+- [x] **1. Add the release-run contracts and deterministic transition kernel**
       Spec ref: `Autonomous Release Steward Technical Spec > State machine` and
       `> Policy profile`
       What to build: Add the closed run-state, decision-envelope, external-action,

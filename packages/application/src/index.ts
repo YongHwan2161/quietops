@@ -17,6 +17,7 @@ export {
   ReleaseRunService,
   type ClaimedReleaseRun,
   type CommitReleaseObservation,
+  type ImmutableObservationEvidence,
   type ReleaseRunProjection,
   type ReleaseRunServiceOptions,
   type ReleaseTriggerCommand,

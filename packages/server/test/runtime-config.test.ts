@@ -200,3 +200,26 @@ test("keeps GitHub webhook intake default-off and requires a bounded secret", ()
     );
   }
 });
+
+test("keeps operator authority default-off and validates only an injected high-entropy token", () => {
+  const operatorToken = "quietops-runtime-operator-token-32-bytes-minimum";
+  assert.deepEqual(resolveConfig({ QUIETOPS_OPERATOR_TOKEN: operatorToken }), {
+    host: "127.0.0.1",
+    port: 4173,
+    decisionMode: "local-interactive",
+    databasePath: resolve(REPOSITORY_ROOT, ".quietops/quietops.sqlite"),
+    githubWebhookEnabled: false,
+    operatorToken,
+  });
+  for (const value of [
+    "",
+    "short",
+    ` ${operatorToken}`,
+    `${operatorToken}\n`,
+  ]) {
+    assert.throws(
+      () => resolveConfig({ QUIETOPS_OPERATOR_TOKEN: value }),
+      /Operator token must be 32-256 bytes/,
+    );
+  }
+});

@@ -2,7 +2,7 @@
 
 ## Status
 
-`ITEM_6_COMPLETE_ITEM_7_HOLD`
+`ITEM_7_COMPLETE_ITEM_8_HOLD`
 
 This checklist is the implementation contract for the
 [technical specification](AUTONOMOUS_RELEASE_STEWARD_TECHNICAL_SPEC_2026-08-23.md).
@@ -168,7 +168,7 @@ documentation PR is reviewed and the user explicitly advances to the build.
       clock, if a second checkpoint is possible, or if restart creates a child run.
       Revert Item 6 only.
 
-- [ ] **7. Add authenticated decision submission and wait-branch resume**
+- [x] **7. Add authenticated decision submission and wait-branch resume**
       Spec ref: `Autonomous Release Steward Technical Spec > Decision envelope and API`
       What to build: Add constant-time operator bearer validation and
       `POST /api/decisions/:decisionId`. Atomically bind the decision to run version,

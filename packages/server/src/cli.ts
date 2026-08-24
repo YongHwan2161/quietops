@@ -14,6 +14,7 @@ const {
   releaseCommit,
   githubWebhookEnabled,
   githubWebhookSecret,
+  operatorToken,
 } = resolveQuietOpsRuntimeConfig(process.env, { repositoryRoot });
 
 await mkdir(dirname(databasePath), { recursive: true });
@@ -25,6 +26,7 @@ const app = await createQuietOpsServer({
   ...(githubWebhookEnabled
     ? { githubWebhook: { secret: githubWebhookSecret! } }
     : {}),
+  ...(operatorToken ? { releaseDecision: { operatorToken } } : {}),
   seedDemo: true,
   logger: true,
 });

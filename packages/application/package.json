@@ -30,5 +30,8 @@
     "@quietops/agent": "0.0.0",
     "@quietops/contracts": "0.0.0",
     "@quietops/storage": "0.0.0"
+  },
+  "devDependencies": {
+    "@strands-agents/sdk": "1.13.0"
   }
 }

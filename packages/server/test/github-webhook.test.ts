@@ -8,6 +8,10 @@ import { performance } from "node:perf_hooks";
 import test from "node:test";
 
 import { MAX_GITHUB_WEBHOOK_BODY_BYTES } from "@quietops/adapters";
+import type {
+  ReleaseRunObservationRunner,
+  ReleaseRunWorkerShutdownResult,
+} from "@quietops/application";
 import { SQLiteReleaseRunLedger } from "@quietops/storage";
 
 import { createQuietOpsServer } from "../src/index.js";
@@ -73,6 +77,15 @@ test("keeps the route off by default, then persists and replays one authenticate
     assert.equal(firstReceipt.accepted, true);
     assert.equal(firstReceipt.replayed, false);
     runId = firstReceipt.runId;
+
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    const disabledWorkerObserver = new SQLiteReleaseRunLedger(databasePath);
+    try {
+      assert.equal(disabledWorkerObserver.getHead(runId)?.state, "MONITORING");
+      assert.equal(disabledWorkerObserver.listEvents(runId).length, 1);
+    } finally {
+      disabledWorkerObserver.close();
+    }
 
     const conflictBody = pushBody({ after: OTHER_COMMIT });
     const conflict = await app.inject(webhookRequest(conflictBody));
@@ -141,6 +154,77 @@ test("keeps the route off by default, then persists and replays one authenticate
     assert.equal(logText.includes(forbidden), false);
   }
   await rm(directory, { recursive: true, force: true });
+});
+
+test("runs a signed trigger to quiet completion with no browser and drains on close", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "quietops-webhook-worker-"));
+  const databasePath = join(directory, "ledger.sqlite");
+  const workerErrors: unknown[] = [];
+  let shutdown: Readonly<ReleaseRunWorkerShutdownResult> | undefined;
+  let observationCalls = 0;
+  const runObservation: ReleaseRunObservationRunner = async (request) => {
+    observationCalls += 1;
+    return readyObservation(request.candidateCommit);
+  };
+  const app = await createQuietOpsServer({
+    databasePath,
+    githubWebhook: {
+      secret: SECRET,
+      now: () => new Date("2026-08-24T05:00:00.000Z"),
+    },
+    releaseWorker: {
+      workerId: "server:worker-test",
+      runObservation,
+      pollIntervalMs: 5,
+      leaseDurationMs: 500,
+      shutdownTimeoutMs: 500,
+      clock: () => new Date("2026-08-24T05:00:01.000Z"),
+      onError: (error) => workerErrors.push(error),
+      onShutdown: (result) => {
+        shutdown = result;
+      },
+    },
+  });
+  let runId = "";
+  try {
+    const response = await app.inject(webhookRequest(pushBody()));
+    assert.equal(response.statusCode, 202);
+    runId = response.json<{ runId: string }>().runId;
+
+    const observer = new SQLiteReleaseRunLedger(databasePath);
+    try {
+      await waitFor(() => observer.getHead(runId)?.state === "COMPLETED");
+      assert.equal(observer.listEvents(runId).length, 3);
+    } finally {
+      observer.close();
+    }
+
+    const replay = await app.inject(webhookRequest(pushBody()));
+    assert.equal(replay.statusCode, 202);
+    assert.equal(replay.json().runId, runId);
+    assert.equal(replay.json().replayed, true);
+    assert.equal(observationCalls, 1);
+  } finally {
+    await app.close();
+  }
+
+  assert.deepEqual(workerErrors, []);
+  assert.deepEqual(shutdown, {
+    started: true,
+    drained: true,
+    claimedRunId: null,
+  });
+  const reopened = new SQLiteReleaseRunLedger(databasePath);
+  try {
+    assert.equal(reopened.getHead(runId)?.state, "COMPLETED");
+    assert.deepEqual(
+      reopened.listEvents(runId).map((event) => event.eventType),
+      ["release-triggered", "observation-recorded", "run-completed"],
+    );
+  } finally {
+    reopened.close();
+    await rm(directory, { recursive: true, force: true });
+  }
 });
 
 test("authenticates before parsing and gives signed foreign or deleted events zero runs", async () => {
@@ -342,4 +426,104 @@ function count(database: DatabaseSync, table: string): number {
     .prepare(`SELECT COUNT(*) AS count FROM ${table}`)
     .get() as { readonly count: number };
   return row.count;
+}
+
+function readyObservation(candidateCommit: string) {
+  const fetchedAt = "2026-08-24T05:00:01.000Z";
+  const sourceId = `github-commit:${candidateCommit}`;
+  const ciId = "github-actions-run:32689002351";
+  const deploymentId = `deployment-marker:${candidateCommit}`;
+  const smokeId = `homepage-smoke:quietops-production.up.railway.app:${fetchedAt}`;
+  return Object.freeze({
+    agentRuntime: "@strands-agents/sdk" as const,
+    agentRuntimeVersion: "1.13.0" as const,
+    modelMode: "injected-test" as const,
+    phase: "FIRST_OBSERVATION" as const,
+    modelNarration: "Narration is not transition authority.",
+    postcondition: Object.freeze({
+      signal: "CANDIDATE_READY" as const,
+      candidateCommit,
+      sourceEvidenceId: sourceId,
+      ciEvidenceId: ciId,
+      deploymentEvidenceId: deploymentId,
+      homepageSmokeEvidenceId: smokeId,
+      externalMutations: 0 as const,
+    }),
+    evidence: Object.freeze([
+      Object.freeze({
+        evidenceId: sourceId,
+        kind: "Source revision" as const,
+        status: "Verified" as const,
+        value: candidateCommit,
+      }),
+      Object.freeze({
+        evidenceId: ciId,
+        kind: "CI status" as const,
+        status: "Verified" as const,
+        value: "success",
+        headSha: candidateCommit,
+      }),
+      Object.freeze({
+        evidenceId: deploymentId,
+        kind: "Deployed revision" as const,
+        status: "Verified" as const,
+        value: candidateCommit,
+      }),
+      Object.freeze({
+        evidenceId: smokeId,
+        kind: "Homepage smoke" as const,
+        status: "Verified" as const,
+        value: "healthy",
+      }),
+    ]),
+    receipts: Object.freeze([
+      receipt("observe_source_revision", sourceId, "github", candidateCommit),
+      receipt("observe_required_ci", ciId, "github", "32689002351"),
+      receipt(
+        "observe_deployment_revision",
+        deploymentId,
+        "deployment-marker",
+        candidateCommit,
+      ),
+      receipt("observe_homepage_smoke", smokeId, "homepage", "200"),
+    ]),
+    toolCallCounts: Object.freeze({
+      observe_source_revision: 1,
+      observe_required_ci: 1,
+      observe_deployment_revision: 1,
+      observe_homepage_smoke: 1,
+      schedule_recheck: 0,
+    }),
+    externalMutations: 0 as const,
+  });
+}
+
+function receipt(
+  toolName:
+    | "observe_source_revision"
+    | "observe_required_ci"
+    | "observe_deployment_revision"
+    | "observe_homepage_smoke",
+  evidenceId: string,
+  provider: "github" | "deployment-marker" | "homepage",
+  providerRecordId: string,
+) {
+  return Object.freeze({
+    toolName,
+    evidenceId,
+    provider,
+    providerRecordId,
+    fetchedAt: "2026-08-24T05:00:01.000Z",
+    externalMutations: 0 as const,
+  });
+}
+
+async function waitFor(condition: () => boolean): Promise<void> {
+  const deadline = Date.now() + 2_000;
+  while (!condition()) {
+    if (Date.now() >= deadline) {
+      throw new Error("Timed out waiting for the release worker.");
+    }
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
 }

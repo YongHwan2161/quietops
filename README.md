@@ -12,8 +12,9 @@ an incident. It then resumes the same run and proves the bounded result.
 > Current boundary: the public site demonstrates the existing read-only verifier,
 > not the redesigned product. The local, default-off successor now has signed
 > event intake, a durable worker, persisted wait/restart recovery, browser smoke
-> evidence, and one expiring decision envelope. Authenticated decision resume,
-> the bounded incident action, and live deployment remain unimplemented gates.
+> evidence, one expiring decision envelope, and authenticated same-run
+> `WAIT_AND_RECHECK` resume. The bounded incident action, exception-first browser,
+> and live successor deployment remain unimplemented gates.
 
 ## The core idea
 
@@ -76,10 +77,10 @@ The following is the approved P0 target, not the current public implementation:
 
 ## Current status
 
-- Active product direction: Autonomous Release Steward checklist Items 1–6 are implemented locally; Item 7 authenticated decision submission and same-run resume is the next HOLD
-- Current implementation baseline: the default-off successor accepts a signed fixed-target push, runs bounded Strands observations in a durable worker, quietly completes a converged release, persists policy waits before sleeping, recovers the same run after restart, and requests one expiring decision only after the healthy delayed path exhausts its normal observation budget
+- Active product direction: Autonomous Release Steward checklist Items 1–7 are implemented locally; Item 8's one-attempt incident action is the next HOLD
+- Current implementation baseline: the default-off successor accepts a signed fixed-target push, runs bounded Strands observations in a durable worker, quietly completes a converged release, persists policy waits before sleeping, recovers the same run after restart, requests one expiring decision only after the healthy delayed path exhausts its normal observation budget, and resumes that same run for one authorized extension without another prompt
 - Implementation: candidate identity, bounded Ready/mismatch Strands paths, a three-tool live source/CI/deployment path, deterministic policy, an append-only SQLite ledger, per-release idempotent replay, human-decision lineage for preserved mismatch cases, inbox/detail projections, and provider receipt links
-- Browser and API: the guarded Fastify server defaults to loopback and exposes the legacy inbox/detail/live-verification routes plus a default-off, signed fixed-target GitHub webhook. The successor worker is injectable for local/test construction; no authenticated release-decision write route or arbitrary repository/URL input is enabled.
+- Browser and API: the guarded Fastify server defaults to loopback and exposes the legacy inbox/detail/live-verification routes plus a default-off, signed fixed-target GitHub webhook. Injecting a bounded operator token enables `POST /api/decisions/:decisionId`; the server derives the `release-owner` actor, rejects stale/expired/foreign/conflicting or repeated decisions, and never accepts authority from the browser body. The successor worker is injectable for local/test construction; no incident-action write or arbitrary repository/URL input is enabled.
 - Live integration status: the complete GitHub source → required CI → Railway marker → policy → SQLite path passes both injected tests and one actual provider-backed local browser journey. It returned `Ready` for predecessor commit `1edbded139c0e7e8ec6e90e9d8f8ee57353ea41a`, CI run `32562992913`, and the matching Railway marker, then replayed the same evaluation on the second request. The new UI and endpoint remain a local successor claim until deployed and invoked on the public domain.
 - Deployment-marker validation: the construction-bound collector performed one bounded unauthenticated GET against the live Railway marker, accepted repository `YongHwan2161/quietops` and full commit `1edbded139c0e7e8ec6e90e9d8f8ee57353ea41a`, and returned `Verified` with `externalMutations: 0`.
 - Hosting target: Railway is live in guarded `public-read-only` mode with one persistent volume, one replica in US West, a `/health` check, and the generated HTTPS domain `quietops-production.up.railway.app`.
@@ -110,6 +111,8 @@ Set `QUIETOPS_DECISION_MODE=public-read-only` to exercise the fail-closed shared
 The CLI defaults to `127.0.0.1:4173` and the repository-local `.quietops/quietops.sqlite`. A platform-style public bind additionally requires `QUIETOPS_HOST=0.0.0.0`, `PORT=<1-65535>`, `QUIETOPS_DECISION_MODE=public-read-only`, `QUIETOPS_RELEASE_COMMIT=<40 lowercase hex>`, and an absolute `QUIETOPS_DB_PATH` outside the application repository, such as `/data/quietops.sqlite`. `QUIETOPS_PORT` remains a local alias; if both port variables are set, their parsed values must match. `GET /health` is a no-store process-liveness check only. When a release commit is configured, `GET /.well-known/quietops-release.json` returns the strict repository/commit marker and enables the fixed-target live-verification endpoint. The browser cannot select another repository or deployment URL.
 
 Signed GitHub intake is absent by default. `POST /api/github/webhooks` is registered only when `QUIETOPS_GITHUB_WEBHOOK_ENABLED=true` and `QUIETOPS_GITHUB_WEBHOOK_SECRET` contains 32-256 UTF-8 bytes without surrounding whitespace or control characters. The route accepts at most 256 KiB, authenticates the untouched body with `X-Hub-Signature-256` before JSON parsing, and persists only non-deleted pushes for `YongHwan2161/quietops` `refs/heads/main`. Installing an actual GitHub webhook and secret remains a separate operational step.
+
+Authenticated release decisions are also absent by default. Setting a 32-256 byte `QUIETOPS_OPERATOR_TOKEN` without whitespace or control characters registers `POST /api/decisions/:decisionId`. The route validates `Authorization: Bearer <token>` in constant time before parsing the decision contract, requires a bounded `Idempotency-Key`, and currently permits only `WAIT_AND_RECHECK`; `ESCALATE_INCIDENT` remains held for Item 8. Tests prove restart recovery during the actual extension wait, identical replay, one decision maximum, and zero token matches in persisted bytes or captured logs. Installing an operator token or exposing this successor route publicly remains a separate operational gate.
 
 Production-style execution is an explicit two-command contract: run `npm run build` during the build phase, then run `npm start` to execute only the prebuilt `@quietops/server` CLI. `npm start` does not install dependencies, compile TypeScript, migrate storage, invent environment defaults for a public bind, or create a hosting resource.
 

@@ -1,6 +1,7 @@
 import { isAbsolute, relative, resolve, sep } from "node:path";
 
 import type { DecisionMode } from "./server.js";
+import { normalizeOperatorToken } from "./operator-auth.js";
 
 export type RuntimeEnvironment = Readonly<Record<string, string | undefined>>;
 
@@ -16,6 +17,7 @@ export interface QuietOpsRuntimeConfig {
   readonly releaseCommit?: string;
   readonly githubWebhookEnabled: boolean;
   readonly githubWebhookSecret?: string;
+  readonly operatorToken?: string;
 }
 
 export function resolveQuietOpsRuntimeConfig(
@@ -35,6 +37,10 @@ export function resolveQuietOpsRuntimeConfig(
     environment.QUIETOPS_GITHUB_WEBHOOK_SECRET,
     githubWebhookEnabled,
   );
+  const operatorToken =
+    environment.QUIETOPS_OPERATOR_TOKEN !== undefined
+      ? normalizeOperatorToken(environment.QUIETOPS_OPERATOR_TOKEN)
+      : undefined;
   const databasePath = parseDatabasePath(
     environment.QUIETOPS_DB_PATH,
     repositoryRoot,
@@ -60,6 +66,7 @@ export function resolveQuietOpsRuntimeConfig(
     githubWebhookEnabled,
     ...(releaseCommit ? { releaseCommit } : {}),
     ...(githubWebhookSecret ? { githubWebhookSecret } : {}),
+    ...(operatorToken ? { operatorToken } : {}),
   });
 }
 

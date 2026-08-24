@@ -14,12 +14,18 @@ export {
   type LiveReleaseVerificationCommandResult,
 } from "./evaluation-service.js";
 export {
+  ReleaseDecisionChoiceUnavailableError,
+  ReleaseDecisionExpiredError,
+  ReleaseDecisionNotFoundError,
   ReleaseRunService,
   type ClaimedReleaseRun,
   type CommitReleaseObservation,
   type ImmutableObservationEvidence,
   type ReleaseRunProjection,
   type ReleaseRunServiceOptions,
+  type ReleaseDecisionReceipt,
+  type SubmitReleaseDecisionCommand,
+  type SubmitReleaseDecisionResult,
   type ReleaseTriggerCommand,
   type ReleaseTriggerResult,
 } from "./release-run-service.js";

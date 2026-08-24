@@ -360,6 +360,11 @@ test("records one wait decision, replays it, and rejects conflicting or second d
     ledger.createRunFromWebhook(trigger());
     requestDecision(ledger);
     const command = waitDecision();
+    assert.equal(
+      ledger.findDecisionRequest("decision-01")?.eventType,
+      "decision-requested",
+    );
+    assert.equal(ledger.findDecisionRequest("unknown-decision"), undefined);
     const first = ledger.recordDecision(command);
     assert.deepEqual(first, {
       runId: "run-01",
@@ -372,6 +377,10 @@ test("records one wait decision, replays it, and rejects conflicting or second d
     });
     assert.equal(ledger.recordDecision(command).replayed, true);
     assert.equal(ledger.listEvents("run-01").length, 3);
+    assert.equal(
+      ledger.listEvents("run-01").at(-1)?.payload.actor,
+      "release-owner",
+    );
     assert.equal(ledger.getExternalAction("action-01"), undefined);
 
     assert.throws(
@@ -635,6 +644,7 @@ function waitDecision(
     eventId: "event-decision-recorded",
     actionEventId: null,
     choice: "WAIT_AND_RECHECK",
+    actor: "release-owner",
     occurredAt: "2026-08-23T12:01:00.000Z",
     waitUntil: "2026-08-23T12:01:05.000Z",
     action: null,
@@ -654,6 +664,7 @@ function escalateDecision(
     eventId: "event-decision-recorded",
     actionEventId: "event-action-reserved",
     choice: "ESCALATE_INCIDENT",
+    actor: "release-owner",
     occurredAt: "2026-08-23T12:01:00.000Z",
     waitUntil: null,
     action: {

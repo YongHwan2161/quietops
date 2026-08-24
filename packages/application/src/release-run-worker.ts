@@ -27,13 +27,13 @@ export interface ReleaseRunObservationRequest {
   readonly candidateCommit: string;
   readonly phase: Extract<
     ReleaseStewardObservationPhase,
-    "FIRST_OBSERVATION" | "LATER_OBSERVATION"
+    "FIRST_OBSERVATION" | "LATER_OBSERVATION" | "EXTENSION_OBSERVATION"
   >;
   readonly immutableEvidenceIds?: {
     readonly source: string;
     readonly ci: string;
   };
-  readonly recheckProposal: {
+  readonly recheckProposal?: {
     readonly waitUntil: string;
     readonly durationMs: number;
     readonly policyProfile: string;
@@ -211,7 +211,7 @@ export class ReleaseRunWorker {
     }
     if (claim.head.state !== "MONITORING") {
       throw new Error(
-        `Release worker cannot process ${claim.head.state} before Item 7.`,
+        `Release worker cannot process ${claim.head.state} before Item 8.`,
       );
     }
     const request = observationRequest(claim, claimTime);
@@ -268,16 +268,8 @@ function observationRequest(
   if (claim.head.state !== "MONITORING") {
     throw new Error("Observation request requires one MONITORING run.");
   }
-  if (claim.decisionCount !== 0) {
-    throw new Error(
-      "Post-decision observation is unavailable before Item 7 resume handling.",
-    );
-  }
-  const phase =
-    claim.observationCount === 0
-      ? ("FIRST_OBSERVATION" as const)
-      : ("LATER_OBSERVATION" as const);
-  if (phase === "LATER_OBSERVATION" && !claim.immutableEvidence) {
+  const phase = observationPhase(claim);
+  if (phase !== "FIRST_OBSERVATION" && !claim.immutableEvidence) {
     throw new Error("Later observation cannot lose immutable evidence IDs.");
   }
   const durationMs = claim.run.policyProfile.delayBetweenObservationsMs;
@@ -293,12 +285,35 @@ function observationRequest(
           }),
         }
       : {}),
-    recheckProposal: Object.freeze({
-      waitUntil: new Date(Date.parse(observedAt) + durationMs).toISOString(),
-      durationMs,
-      policyProfile: `${claim.run.policyProfile.name}@${claim.run.policyProfile.version}`,
-    }),
+    ...(phase === "EXTENSION_OBSERVATION"
+      ? {}
+      : {
+          recheckProposal: Object.freeze({
+            waitUntil: new Date(
+              Date.parse(observedAt) + durationMs,
+            ).toISOString(),
+            durationMs,
+            policyProfile: `${claim.run.policyProfile.name}@${claim.run.policyProfile.version}`,
+          }),
+        }),
   });
+}
+
+function observationPhase(
+  claim: Readonly<ClaimedReleaseRun>,
+): ReleaseRunObservationRequest["phase"] {
+  if (claim.decisionCount === 0) {
+    return claim.observationCount === 0
+      ? "FIRST_OBSERVATION"
+      : "LATER_OBSERVATION";
+  }
+  if (
+    claim.decisionCount === 1 &&
+    claim.decisionChoice === "WAIT_AND_RECHECK"
+  ) {
+    return "EXTENSION_OBSERVATION";
+  }
+  throw new Error("Release run cannot schedule a second human checkpoint.");
 }
 
 function classifyObservationFailure(

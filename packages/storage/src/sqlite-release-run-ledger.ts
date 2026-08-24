@@ -93,6 +93,7 @@ export interface RecordReleaseDecision {
   readonly eventId: string;
   readonly actionEventId: string | null;
   readonly choice: DecisionChoice;
+  readonly actor: "release-owner";
   readonly occurredAt: string;
   readonly waitUntil: string | null;
   readonly action: ReservedExternalAction | null;
@@ -769,6 +770,25 @@ export class SQLiteReleaseRunLedger {
     return this.#listEvents(runId);
   }
 
+  findDecisionRequest(decisionId: string): StoredReleaseRunEvent | undefined {
+    this.#requireOpen();
+    assertIdentifier(decisionId, "decision ID");
+    const rows = this.#database
+      .prepare(
+        `SELECT event_id, run_id, sequence, event_type, occurred_at, payload_json
+         FROM release_run_events
+         WHERE event_type = 'decision-requested'
+           AND json_extract(payload_json, '$.decisionId') = ?
+         ORDER BY run_id ASC
+         LIMIT 2`,
+      )
+      .all(decisionId) as unknown as readonly EventRow[];
+    if (rows.length > 1) {
+      throw new Error("Decision identity is not globally unique.");
+    }
+    return rows[0] ? mapEvent(rows[0]) : undefined;
+  }
+
   getExternalAction(actionId: string): StoredExternalAction | undefined {
     this.#requireOpen();
     const row = this.#readActionRow(actionId);
@@ -1093,6 +1113,9 @@ function validateDecisionCommand(command: RecordReleaseDecision): void {
   assertIdentifier(command.eventId, "decision event ID");
   assertExpectedVersion(command.expectedRunVersion);
   assertUtcTimestamp(command.occurredAt, "decision time");
+  if (command.actor !== "release-owner") {
+    throw new Error("Release decision actor must be derived by the server.");
+  }
   if (!COMMIT_PATTERN.test(command.candidateCommit)) {
     throw new Error("Invalid decision candidate commit.");
   }
@@ -1161,6 +1184,7 @@ function buildDecisionEvents(
           : "ESCALATE_INCIDENT_AUTHORIZED",
       decisionId: command.decisionId,
       choice,
+      actor: command.actor,
       nextWakeAt: command.waitUntil,
       activeDecisionId: null,
       stopCode: null,
@@ -1264,7 +1288,7 @@ function decisionRequest(
     candidateCommit: command.candidateCommit,
     expectedRunVersion: command.expectedRunVersion,
     choice,
-    waitUntil: command.waitUntil,
+    actor: command.actor,
     action:
       command.action === null
         ? null

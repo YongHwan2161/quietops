@@ -12,15 +12,24 @@ import {
   EvaluationAlreadyResolvedError,
   EvaluationNotFoundError,
   EvaluationService,
+  ReleaseDecisionChoiceUnavailableError,
+  ReleaseDecisionExpiredError,
+  ReleaseDecisionNotFoundError,
   ReleaseRunService,
   ReleaseRunWorker,
   type EvaluationServiceOptions,
   type ReleaseRunWorkerOptions,
   type ReleaseRunWorkerShutdownResult,
 } from "@quietops/application";
-import { resolvePolicyProfile } from "@quietops/contracts";
+import {
+  ContractValidationError,
+  resolvePolicyProfile,
+  type DecisionChoice,
+} from "@quietops/contracts";
 import {
   IdempotencyConflictError,
+  ReleaseRunConcurrencyError,
+  ReleaseRunStateError,
   SQLiteEvaluationLedger,
   SQLiteReleaseRunLedger,
 } from "@quietops/storage";
@@ -30,6 +39,11 @@ import Fastify, {
   type FastifyReply,
   type FastifyServerOptions,
 } from "fastify";
+
+import {
+  normalizeOperatorToken,
+  verifyOperatorBearer,
+} from "./operator-auth.js";
 
 const PUBLIC_FILES = Object.freeze({
   "/": Object.freeze({
@@ -58,7 +72,7 @@ interface EvaluationParams {
   readonly evaluationId: string;
 }
 
-interface DecisionHeaders {
+interface EvaluationDecisionHeaders {
   readonly "idempotency-key": string;
 }
 
@@ -68,8 +82,27 @@ interface DecisionBody {
   readonly note?: string;
 }
 
+interface ReleaseDecisionParams {
+  readonly decisionId: string;
+}
+
+interface ReleaseDecisionHeaders {
+  readonly authorization?: string;
+  readonly "idempotency-key": string;
+}
+
+interface ReleaseDecisionBody {
+  readonly choice: DecisionChoice;
+  readonly expectedRunVersion: number;
+}
+
 export interface GitHubWebhookServerOptions {
   readonly secret: string;
+  readonly now?: () => Date;
+}
+
+export interface ReleaseDecisionServerOptions {
+  readonly operatorToken: string;
   readonly now?: () => Date;
 }
 
@@ -82,6 +115,7 @@ export interface CreateQuietOpsServerOptions {
   readonly releaseCommit?: string;
   readonly githubWebhook?: GitHubWebhookServerOptions;
   readonly releaseWorker?: ReleaseWorkerServerOptions;
+  readonly releaseDecision?: ReleaseDecisionServerOptions;
 }
 
 export interface ReleaseWorkerServerOptions extends Omit<
@@ -101,9 +135,10 @@ export async function createQuietOpsServer(
   const decisionMode = normalizeDecisionMode(options.decisionMode);
   const releaseCommit = normalizeReleaseCommit(options.releaseCommit);
   const githubWebhook = normalizeGitHubWebhook(options.githubWebhook);
+  const releaseDecision = normalizeReleaseDecision(options.releaseDecision);
   const ledger = new SQLiteEvaluationLedger(options.databasePath);
   const releaseRunLedger =
-    githubWebhook || options.releaseWorker
+    githubWebhook || options.releaseWorker || releaseDecision
       ? new SQLiteReleaseRunLedger(options.databasePath)
       : undefined;
   const releaseRunService = releaseRunLedger
@@ -211,9 +246,29 @@ export async function createQuietOpsServer(
     if (
       error instanceof DecisionNotAllowedError ||
       error instanceof EvaluationAlreadyResolvedError ||
-      error instanceof IdempotencyConflictError
+      error instanceof IdempotencyConflictError ||
+      error instanceof ReleaseDecisionChoiceUnavailableError ||
+      error instanceof ReleaseRunConcurrencyError ||
+      error instanceof ReleaseRunStateError
     ) {
       sendError(reply, 409, error.code, error.message);
+      return;
+    }
+    if (error instanceof ContractValidationError) {
+      sendError(
+        reply,
+        400,
+        "INVALID_REQUEST",
+        "The request did not match the API contract.",
+      );
+      return;
+    }
+    if (error instanceof ReleaseDecisionNotFoundError) {
+      sendError(reply, 404, error.code, error.message);
+      return;
+    }
+    if (error instanceof ReleaseDecisionExpiredError) {
+      sendError(reply, 410, error.code, error.message);
       return;
     }
 
@@ -300,6 +355,51 @@ export async function createQuietOpsServer(
     });
   }
 
+  if (releaseDecision && releaseRunService) {
+    app.post<{
+      Params: ReleaseDecisionParams;
+      Headers: ReleaseDecisionHeaders;
+      Body: ReleaseDecisionBody;
+    }>(
+      "/api/decisions/:decisionId",
+      {
+        schema: {
+          params: releaseDecisionParamsSchema,
+          headers: releaseDecisionHeadersSchema,
+        },
+      },
+      async (request, reply) => {
+        if (
+          !verifyOperatorBearer(
+            request.headers.authorization,
+            releaseDecision.operatorToken,
+          )
+        ) {
+          sendError(
+            reply,
+            401,
+            "OPERATOR_AUTHENTICATION_REQUIRED",
+            "Valid release-owner bearer authority is required.",
+          );
+          return;
+        }
+        const occurredAt = (
+          releaseDecision.now?.() ?? new Date()
+        ).toISOString();
+        const result = releaseRunService.submitDecision({
+          decisionId: request.params.decisionId,
+          submission: request.body,
+          idempotencyKey: request.headers["idempotency-key"],
+          occurredAt,
+        });
+        return {
+          receipt: result.receipt,
+          run: result.projection,
+        };
+      },
+    );
+  }
+
   app.get("/api/inbox", async () => ({
     capabilities: Object.freeze({
       decisionMode,
@@ -348,7 +448,7 @@ export async function createQuietOpsServer(
 
   app.post<{
     Params: EvaluationParams;
-    Headers: DecisionHeaders;
+    Headers: EvaluationDecisionHeaders;
     Body: DecisionBody;
   }>(
     "/api/evaluations/:evaluationId/decisions",
@@ -452,6 +552,16 @@ function normalizeGitHubWebhook(
   });
 }
 
+function normalizeReleaseDecision(
+  value: ReleaseDecisionServerOptions | undefined,
+): ReleaseDecisionServerOptions | undefined {
+  if (value === undefined) return undefined;
+  return Object.freeze({
+    operatorToken: normalizeOperatorToken(value.operatorToken),
+    ...(value.now ? { now: value.now } : {}),
+  });
+}
+
 function createReleaseWorker(
   service: ReleaseRunService,
   options: ReleaseWorkerServerOptions,
@@ -522,6 +632,38 @@ const decisionBodySchema = Object.freeze({
       minLength: 1,
       maxLength: 500,
       pattern: "^\\S(?:[\\s\\S]*\\S)?$",
+    },
+  },
+});
+
+const releaseDecisionParamsSchema = Object.freeze({
+  type: "object",
+  additionalProperties: false,
+  required: ["decisionId"],
+  properties: {
+    decisionId: {
+      type: "string",
+      minLength: 1,
+      maxLength: 128,
+      pattern: "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+    },
+  },
+});
+
+const releaseDecisionHeadersSchema = Object.freeze({
+  type: "object",
+  required: ["idempotency-key"],
+  properties: {
+    authorization: {
+      type: "string",
+      minLength: 1,
+      maxLength: 512,
+    },
+    "idempotency-key": {
+      type: "string",
+      minLength: 1,
+      maxLength: 128,
+      pattern: "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
     },
   },
 });

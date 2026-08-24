@@ -89,7 +89,9 @@ describe("durable release run worker", () => {
           smokeCollections += 1;
           return homepageBundle();
         },
-        recheckProposal: request.recheckProposal,
+        ...(request.recheckProposal
+          ? { recheckProposal: request.recheckProposal }
+          : {}),
       });
     const firstWorker = new ReleaseRunWorker({
       service,
@@ -222,7 +224,9 @@ describe("durable release run worker", () => {
           deploymentCollector: async () =>
             deploymentBundle(OLD_DEPLOYMENT, fetchedAt),
           homepageCollector: async () => homepageBundle(fetchedAt),
-          recheckProposal: request.recheckProposal,
+          ...(request.recheckProposal
+            ? { recheckProposal: request.recheckProposal }
+            : {}),
         });
       };
       const firstWorker = new ReleaseRunWorker({
@@ -379,6 +383,208 @@ describe("durable release run worker", () => {
       }
     },
   );
+
+  it(
+    "records one owner authorization, survives restart during a real extension, and completes the same run",
+    { timeout: 15_000 },
+    async (testContext) => {
+      const directory = await mkdtemp(join(tmpdir(), "quietops-extension-"));
+      const databasePath = join(directory, "quietops.sqlite");
+      let ledger = new SQLiteReleaseRunLedger(databasePath);
+      const prepared = await createAwaitingDecisionRun(
+        ledger,
+        "extension-real-wait",
+        Date.now(),
+      );
+      let service = prepared.service;
+      const awaiting = service.getProjection(prepared.runId);
+      const command = {
+        decisionId: awaiting.activeDecisionId!,
+        submission: {
+          choice: "WAIT_AND_RECHECK" as const,
+          expectedRunVersion: awaiting.version,
+        },
+        idempotencyKey: "owner-extension-real-1",
+        occurredAt: new Date().toISOString(),
+      };
+
+      try {
+        const authorized = service.submitDecision(command);
+        assert.equal(authorized.receipt.replayed, false);
+        assert.equal(authorized.receipt.runId, prepared.runId);
+        assert.equal(authorized.receipt.actor, "release-owner");
+        assert.equal(authorized.receipt.externalWriteAttempts, 0);
+        assert.equal(authorized.projection.state, "WAITING");
+        const replay = service.submitDecision({
+          ...command,
+          occurredAt: new Date(
+            Date.parse(command.occurredAt) + 1_000,
+          ).toISOString(),
+        });
+        assert.equal(replay.receipt.replayed, true);
+        assert.equal(
+          replay.receipt.authorizedAt,
+          authorized.receipt.authorizedAt,
+        );
+        assert.equal(replay.receipt.nextWakeAt, authorized.receipt.nextWakeAt);
+        assert.equal(replay.receipt.authorizedRunVersion, 7);
+        assert.equal(
+          ledger
+            .listEvents(prepared.runId)
+            .filter((event) => event.eventType === "decision-recorded").length,
+          1,
+        );
+
+        await assert.rejects(
+          Promise.resolve().then(() =>
+            service.submitDecision({
+              ...command,
+              submission: {
+                ...command.submission,
+                expectedRunVersion: command.submission.expectedRunVersion + 1,
+              },
+            }),
+          ),
+          /idempotency key/i,
+        );
+
+        ledger.close();
+        ledger = new SQLiteReleaseRunLedger(databasePath);
+        service = new ReleaseRunService(ledger);
+        const restarted = service.getProjection(prepared.runId);
+        assert.equal(restarted.runId, prepared.runId);
+        assert.equal(restarted.nextWakeAt, authorized.receipt.nextWakeAt);
+        assert.equal(restarted.state, "WAITING");
+        const phases: string[] = [];
+        const worker = new ReleaseRunWorker({
+          service,
+          workerId: "worker:extension-real-resume",
+          runObservation: async (request) => {
+            phases.push(request.phase);
+            return await candidateDeploymentObservation(request);
+          },
+        });
+        assert.deepEqual(await worker.tick(), { status: "idle", runId: null });
+        const remainingMs = Math.max(
+          0,
+          Date.parse(authorized.receipt.nextWakeAt) - Date.now() + 30,
+        );
+        await new Promise((resolve) => setTimeout(resolve, remainingMs));
+        const woke = await worker.tick();
+        assert.equal(woke.status, "committed");
+        assert.equal(woke.runId, prepared.runId);
+        assert.equal(woke.signal, "WAIT_DUE");
+        const completed = await worker.tick();
+        assert.equal(completed.status, "committed");
+        assert.equal(completed.runId, prepared.runId);
+        assert.equal(completed.signal, "EXTENSION_READY");
+        assert.equal(completed.state, "COMPLETED");
+        assert.deepEqual(phases, ["EXTENSION_OBSERVATION"]);
+
+        const projection = service.getProjection(prepared.runId);
+        const events = ledger.listEvents(prepared.runId);
+        const authorizationIndex = events.findIndex(
+          (event) => event.eventType === "decision-recorded",
+        );
+        const resumeIndex = events.findIndex(
+          (event, index) =>
+            index > authorizationIndex && event.eventType === "run-woke",
+        );
+        assert.ok(authorizationIndex >= 0);
+        assert.ok(resumeIndex > authorizationIndex);
+        assert.equal(projection.runId, prepared.runId);
+        assert.equal(projection.state, "COMPLETED");
+        assert.equal(projection.decisionCount, 1);
+        assert.equal(
+          events.filter((event) => event.eventType === "decision-recorded")
+            .length,
+          1,
+        );
+        assert.equal(
+          events.filter((event) => event.eventType === "decision-requested")
+            .length,
+          1,
+        );
+        assert.equal(projection.externalWriteAttempts, 0);
+        assert.deepEqual(projection.stateHistory, [
+          "MONITORING",
+          "WAITING",
+          "MONITORING",
+          "AWAITING_DECISION",
+          "WAITING",
+          "MONITORING",
+          "COMPLETED",
+        ]);
+        testContext.diagnostic(
+          `item-7 evidence ${JSON.stringify({
+            runId: prepared.runId,
+            restartRunId: projection.runId,
+            authorizationEventBeforeResume: authorizationIndex < resumeIndex,
+            replayCount: 1,
+            secondDecisionCount: 0,
+            extensionWaitMs:
+              Date.parse(events[resumeIndex]!.occurredAt) -
+              Date.parse(events[authorizationIndex]!.occurredAt),
+            externalWriteAttempts: projection.externalWriteAttempts,
+          })}`,
+        );
+        await worker.stop();
+      } finally {
+        ledger.close();
+        await rm(directory, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it("stops an exhausted authorized extension without another prompt", async () => {
+    const ledger = new SQLiteReleaseRunLedger();
+    const prepared = await createAwaitingDecisionRun(
+      ledger,
+      "extension-exhausted",
+      Date.parse("2026-08-24T06:00:20.000Z"),
+    );
+    const awaiting = prepared.service.getProjection(prepared.runId);
+    const authorized = prepared.service.submitDecision({
+      decisionId: awaiting.activeDecisionId!,
+      submission: {
+        choice: "WAIT_AND_RECHECK",
+        expectedRunVersion: awaiting.version,
+      },
+      idempotencyKey: "owner-extension-exhausted-1",
+      occurredAt: "2026-08-24T06:00:20.000Z",
+    });
+    let now = Date.parse(authorized.receipt.nextWakeAt);
+    const worker = new ReleaseRunWorker({
+      service: prepared.service,
+      workerId: "worker:extension-exhausted",
+      clock: () => new Date(now),
+      runObservation: oldDeploymentObservation,
+    });
+    try {
+      const woke = await worker.tick();
+      assert.equal(woke.status, "committed");
+      assert.equal(woke.signal, "WAIT_DUE");
+      now += 1;
+      const stopped = await worker.tick();
+      assert.equal(stopped.status, "committed");
+      assert.equal(stopped.runId, prepared.runId);
+      assert.equal(stopped.signal, "EXTENSION_EXHAUSTED");
+      assert.equal(stopped.state, "STOPPED");
+      const projection = prepared.service.getProjection(prepared.runId);
+      assert.equal(projection.decisionCount, 1);
+      assert.equal(projection.humanPrompts, 1);
+      assert.equal(projection.externalWriteAttempts, 0);
+      assert.equal(
+        ledger
+          .listEvents(prepared.runId)
+          .filter((event) => event.eventType === "decision-requested").length,
+        1,
+      );
+    } finally {
+      await worker.stop();
+      ledger.close();
+    }
+  });
 
   it("holds a restarted run immediately before its due time and wakes it at the exact boundary", async () => {
     const directory = await mkdtemp(join(tmpdir(), "quietops-wait-boundary-"));
@@ -690,8 +896,59 @@ class ToolSequenceModel extends Model<BaseModelConfig> {
   }
 }
 
+async function createAwaitingDecisionRun(
+  ledger: SQLiteReleaseRunLedger,
+  deliveryId: string,
+  baseMs: number,
+): Promise<Readonly<{ service: ReleaseRunService; runId: string }>> {
+  const service = new ReleaseRunService(ledger);
+  const trigger = service.createFromTrigger({
+    candidateCommit: CANDIDATE,
+    deliveryId,
+    policyProfile: resolvePolicyProfile("demo-v1"),
+    occurredAt: new Date(baseMs - 20_000).toISOString(),
+  });
+  let now = baseMs - 15_000;
+  const worker = new ReleaseRunWorker({
+    service,
+    workerId: `worker:prepare:${deliveryId}`,
+    clock: () => new Date(now),
+    runObservation: oldDeploymentObservation,
+  });
+  try {
+    const first = await worker.tick();
+    assert.equal(first.status, "committed");
+    assert.equal(first.state, "WAITING");
+    now += 5_000;
+    const woke = await worker.tick();
+    assert.equal(woke.status, "committed");
+    assert.equal(woke.signal, "WAIT_DUE");
+    now += 1;
+    const decision = await worker.tick();
+    assert.equal(decision.status, "committed");
+    assert.equal(decision.state, "AWAITING_DECISION");
+    assert.equal(decision.signal, "OBSERVATION_BUDGET_EXHAUSTED");
+    return Object.freeze({ service, runId: trigger.runId });
+  } finally {
+    await worker.stop();
+  }
+}
+
 async function oldDeploymentObservation(
   request: Readonly<ReleaseRunObservationRequest>,
+): Promise<Readonly<ReleaseStewardObservationResult>> {
+  return await deploymentObservation(request, OLD_DEPLOYMENT);
+}
+
+async function candidateDeploymentObservation(
+  request: Readonly<ReleaseRunObservationRequest>,
+): Promise<Readonly<ReleaseStewardObservationResult>> {
+  return await deploymentObservation(request, CANDIDATE);
+}
+
+async function deploymentObservation(
+  request: Readonly<ReleaseRunObservationRequest>,
+  deployedCommit: string,
 ): Promise<Readonly<ReleaseStewardObservationResult>> {
   const toolNames =
     request.phase === "FIRST_OBSERVATION"
@@ -702,11 +959,16 @@ async function oldDeploymentObservation(
           RELEASE_STEWARD_TOOL_NAMES.smoke,
           RELEASE_STEWARD_TOOL_NAMES.recheck,
         ]
-      : [
-          RELEASE_STEWARD_TOOL_NAMES.deployment,
-          RELEASE_STEWARD_TOOL_NAMES.smoke,
-          RELEASE_STEWARD_TOOL_NAMES.recheck,
-        ];
+      : request.phase === "LATER_OBSERVATION"
+        ? [
+            RELEASE_STEWARD_TOOL_NAMES.deployment,
+            RELEASE_STEWARD_TOOL_NAMES.smoke,
+            RELEASE_STEWARD_TOOL_NAMES.recheck,
+          ]
+        : [
+            RELEASE_STEWARD_TOOL_NAMES.deployment,
+            RELEASE_STEWARD_TOOL_NAMES.smoke,
+          ];
   return await runReleaseStewardObservation({
     phase: request.phase,
     candidateCommit: request.candidateCommit,
@@ -717,9 +979,11 @@ async function oldDeploymentObservation(
     model: new ToolSequenceModel(toolNames),
     githubCollector: async () => githubBundle(OBSERVED_AT),
     deploymentCollector: async () =>
-      deploymentBundle(OLD_DEPLOYMENT, OBSERVED_AT),
+      deploymentBundle(deployedCommit, OBSERVED_AT),
     homepageCollector: async () => homepageBundle(OBSERVED_AT),
-    recheckProposal: request.recheckProposal,
+    ...(request.recheckProposal
+      ? { recheckProposal: request.recheckProposal }
+      : {}),
   });
 }
 

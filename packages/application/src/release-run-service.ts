@@ -9,16 +9,21 @@ import {
   validateReleaseStewardPostconditions,
 } from "@quietops/agent";
 import {
+  parseDecisionChoice,
   parseDecisionEnvelope,
+  parseDecisionSubmission,
   parseReleaseRunSignal,
   planReleaseRunTransition,
+  type DecisionChoice,
   type DecisionEnvelope,
   type DecisionEvidenceReference,
+  type DecisionSubmission,
   type PolicyProfile,
   type ReleaseRunSignal,
   type ReleaseRunState,
 } from "@quietops/contracts";
 import {
+  ReleaseRunStateError,
   SQLiteReleaseRunLedger,
   type JsonObject,
   type StoredReleaseRun,
@@ -34,10 +39,12 @@ const STOP_SIGNALS = Object.freeze([
   "EVIDENCE_INVALID",
 ] as const);
 
-type ItemSixObservationSignal =
+type ItemSevenObservationSignal =
   | (typeof COMPLETION_SIGNALS)[number]
   | (typeof STOP_SIGNALS)[number]
-  | "NORMAL_WAIT_REQUIRED";
+  | "NORMAL_WAIT_REQUIRED"
+  | "EXTENSION_READY"
+  | "EXTENSION_EXHAUSTED";
 
 export interface ImmutableObservationEvidence {
   readonly source: DecisionEvidenceReference;
@@ -63,6 +70,7 @@ export interface ClaimedReleaseRun {
   readonly observationCount: number;
   readonly waitCount: number;
   readonly decisionCount: number;
+  readonly decisionChoice: DecisionChoice | null;
   readonly immutableEvidence: Readonly<ImmutableObservationEvidence> | null;
 }
 
@@ -70,6 +78,58 @@ export interface CommitReleaseObservation {
   readonly claim: ClaimedReleaseRun;
   readonly result: Readonly<ReleaseStewardObservationResult>;
   readonly occurredAt: string;
+}
+
+export interface SubmitReleaseDecisionCommand {
+  readonly decisionId: string;
+  readonly submission: DecisionSubmission;
+  readonly idempotencyKey: string;
+  readonly occurredAt: string;
+}
+
+export interface ReleaseDecisionReceipt {
+  readonly decisionId: string;
+  readonly runId: string;
+  readonly candidateCommit: string;
+  readonly choice: "WAIT_AND_RECHECK";
+  readonly actor: "release-owner";
+  readonly authorizedAt: string;
+  readonly authorizedRunVersion: number;
+  readonly nextWakeAt: string;
+  readonly replayed: boolean;
+  readonly externalWriteAttempts: 0;
+}
+
+export interface SubmitReleaseDecisionResult {
+  readonly receipt: ReleaseDecisionReceipt;
+  readonly projection: ReleaseRunProjection;
+}
+
+export class ReleaseDecisionNotFoundError extends Error {
+  readonly code = "RELEASE_DECISION_NOT_FOUND" as const;
+
+  constructor(decisionId: string) {
+    super(`Release decision ${decisionId} was not found.`);
+    this.name = "ReleaseDecisionNotFoundError";
+  }
+}
+
+export class ReleaseDecisionExpiredError extends Error {
+  readonly code = "RELEASE_DECISION_EXPIRED" as const;
+
+  constructor(decisionId: string) {
+    super(`Release decision ${decisionId} has expired.`);
+    this.name = "ReleaseDecisionExpiredError";
+  }
+}
+
+export class ReleaseDecisionChoiceUnavailableError extends Error {
+  readonly code = "RELEASE_DECISION_CHOICE_UNAVAILABLE" as const;
+
+  constructor() {
+    super("Incident escalation remains unavailable before checklist Item 8.");
+    this.name = "ReleaseDecisionChoiceUnavailableError";
+  }
 }
 
 export interface ReleaseRunProjection {
@@ -149,7 +209,80 @@ export class ReleaseRunService {
       observationCount: countEvents(events, "observation-recorded"),
       waitCount: countEvents(events, "wait-scheduled"),
       decisionCount: countEvents(events, "decision-requested"),
+      decisionChoice: readRecordedDecisionChoice(events),
       immutableEvidence: readImmutableObservationEvidence(events),
+    });
+  }
+
+  submitDecision(
+    command: Readonly<SubmitReleaseDecisionCommand>,
+  ): Readonly<SubmitReleaseDecisionResult> {
+    const submission = parseDecisionSubmission(command.submission);
+    const requestEvent = this.#ledger.findDecisionRequest(command.decisionId);
+    if (!requestEvent) {
+      throw new ReleaseDecisionNotFoundError(command.decisionId);
+    }
+    const envelope = parseDecisionEnvelope(
+      requestEvent.payload.decisionEnvelope,
+    );
+    if (
+      envelope.decisionId !== command.decisionId ||
+      envelope.runId !== requestEvent.runId
+    ) {
+      throw new Error("Stored decision envelope identity is invalid.");
+    }
+    if (submission.choice !== "WAIT_AND_RECHECK") {
+      throw new ReleaseDecisionChoiceUnavailableError();
+    }
+
+    const waitUntil = new Date(
+      Date.parse(command.occurredAt) +
+        envelope.policyProfile.authorizedExtensionMs,
+    ).toISOString();
+    let stored;
+    try {
+      stored = this.#ledger.recordDecision({
+        decisionId: envelope.decisionId,
+        runId: envelope.runId,
+        candidateCommit: envelope.candidateCommit,
+        expectedRunVersion: submission.expectedRunVersion,
+        idempotencyKey: command.idempotencyKey,
+        eventId: this.#idFactory("event"),
+        actionEventId: null,
+        choice: submission.choice,
+        actor: "release-owner",
+        occurredAt: command.occurredAt,
+        waitUntil,
+        action: null,
+      });
+    } catch (error) {
+      if (
+        error instanceof ReleaseRunStateError &&
+        command.occurredAt >= envelope.expiresAt
+      ) {
+        throw new ReleaseDecisionExpiredError(command.decisionId);
+      }
+      throw error;
+    }
+
+    const authorization = readDecisionAuthorization(
+      this.#ledger.listEvents(envelope.runId),
+      envelope.decisionId,
+    );
+    return Object.freeze({
+      receipt: Object.freeze({
+        decisionId: envelope.decisionId,
+        runId: envelope.runId,
+        candidateCommit: envelope.candidateCommit,
+        choice: "WAIT_AND_RECHECK",
+        actor: "release-owner",
+        authorizedAt: authorization.occurredAt,
+        authorizedRunVersion: stored.version,
+        nextWakeAt: authorization.nextWakeAt,
+        replayed: stored.replayed,
+        externalWriteAttempts: 0,
+      }),
+      projection: this.getProjection(envelope.runId),
     });
   }
 
@@ -164,8 +297,7 @@ export class ReleaseRunService {
     ) {
       throw new Error("Observation commit requires one leased MONITORING run.");
     }
-    const expectedPhase =
-      claim.observationCount === 0 ? "FIRST_OBSERVATION" : "LATER_OBSERVATION";
+    const expectedPhase = expectedObservationPhase(claim);
     if (result.phase !== expectedPhase) {
       throw new Error(
         `Observation phase ${result.phase} does not match ${expectedPhase}.`,
@@ -174,11 +306,6 @@ export class ReleaseRunService {
     if (result.phase === "LATER_OBSERVATION" && !claim.immutableEvidence) {
       throw new Error(
         "Later observation is missing immutable source and CI evidence.",
-      );
-    }
-    if (claim.decisionCount !== 0) {
-      throw new Error(
-        "Post-decision observation is held for Item 7 and cannot create another checkpoint.",
       );
     }
     if (
@@ -207,7 +334,7 @@ export class ReleaseRunService {
     });
     assertReportedPostcondition(result, verifiedPostcondition);
     assertToolCallCounts(result);
-    const signal = requireItemSixObservationSignal(
+    const signal = requireItemSevenObservationSignal(
       verifiedPostcondition.signal,
     );
 
@@ -227,6 +354,11 @@ export class ReleaseRunService {
 
     const nextObservationCount = claim.observationCount + 1;
     if (signal === "NORMAL_WAIT_REQUIRED") {
+      if (claim.decisionCount !== 0) {
+        throw new Error(
+          "An authorized extension cannot request another decision.",
+        );
+      }
       assertPolicyClampedRecheck(result, claim.run.policyProfile);
       if (
         nextObservationCount <
@@ -422,7 +554,7 @@ function observationPayload(
   cycleId: string,
   candidateCommit: string,
   result: Readonly<ReleaseStewardObservationResult>,
-  signal: ItemSixObservationSignal,
+  signal: ItemSevenObservationSignal,
 ): JsonObject {
   return Object.freeze({
     cycleId,
@@ -534,6 +666,12 @@ function projectReleaseRun(
     if (event.eventType === "wait-scheduled") {
       pendingWaitStartedAt = event.occurredAt;
     }
+    if (
+      event.eventType === "decision-recorded" &&
+      event.payload.choice === "WAIT_AND_RECHECK"
+    ) {
+      pendingWaitStartedAt = event.occurredAt;
+    }
     if (event.eventType === "run-woke") {
       if (pendingWaitStartedAt === null) {
         throw new Error("Stored wake event has no preceding wait.");
@@ -567,7 +705,13 @@ function projectReleaseRun(
   }
 
   const observationCount = countEvents(events, "observation-recorded");
-  const waitCount = countEvents(events, "wait-scheduled");
+  const waitCount =
+    countEvents(events, "wait-scheduled") +
+    events.filter(
+      (event) =>
+        event.eventType === "decision-recorded" &&
+        event.payload.choice === "WAIT_AND_RECHECK",
+    ).length;
   const humanPrompts = countEvents(events, "decision-requested");
   const externalWriteAttempts = countEvents(events, "action-attempted");
   return Object.freeze({
@@ -599,18 +743,75 @@ function projectReleaseRun(
   });
 }
 
-function requireItemSixObservationSignal(
+function expectedObservationPhase(
+  claim: Readonly<ClaimedReleaseRun>,
+): "FIRST_OBSERVATION" | "LATER_OBSERVATION" | "EXTENSION_OBSERVATION" {
+  if (claim.decisionCount === 0) {
+    return claim.observationCount === 0
+      ? "FIRST_OBSERVATION"
+      : "LATER_OBSERVATION";
+  }
+  if (
+    claim.decisionCount === 1 &&
+    claim.decisionChoice === "WAIT_AND_RECHECK"
+  ) {
+    return "EXTENSION_OBSERVATION";
+  }
+  throw new Error("Release run cannot enter another observation checkpoint.");
+}
+
+function readRecordedDecisionChoice(
+  events: readonly StoredReleaseRunEvent[],
+): DecisionChoice | null {
+  const records = events.filter(
+    (event) => event.eventType === "decision-recorded",
+  );
+  if (records.length === 0) return null;
+  if (records.length !== 1 || !records[0]) {
+    throw new Error("Release run contains more than one decision record.");
+  }
+  return parseDecisionChoice(records[0].payload.choice);
+}
+
+function readDecisionAuthorization(
+  events: readonly StoredReleaseRunEvent[],
+  decisionId: string,
+): Readonly<{ occurredAt: string; nextWakeAt: string }> {
+  const records = events.filter(
+    (event) =>
+      event.eventType === "decision-recorded" &&
+      event.payload.decisionId === decisionId,
+  );
+  const event = records[0];
+  if (
+    records.length !== 1 ||
+    !event ||
+    event.payload.choice !== "WAIT_AND_RECHECK" ||
+    event.payload.actor !== "release-owner" ||
+    typeof event.payload.nextWakeAt !== "string"
+  ) {
+    throw new Error("Stored release authorization receipt is invalid.");
+  }
+  return Object.freeze({
+    occurredAt: event.occurredAt,
+    nextWakeAt: event.payload.nextWakeAt,
+  });
+}
+
+function requireItemSevenObservationSignal(
   signal: ReleaseRunSignal,
-): ItemSixObservationSignal {
+): ItemSevenObservationSignal {
   if (
     (COMPLETION_SIGNALS as readonly string[]).includes(signal) ||
     (STOP_SIGNALS as readonly string[]).includes(signal) ||
-    signal === "NORMAL_WAIT_REQUIRED"
+    signal === "NORMAL_WAIT_REQUIRED" ||
+    signal === "EXTENSION_READY" ||
+    signal === "EXTENSION_EXHAUSTED"
   ) {
-    return signal as ItemSixObservationSignal;
+    return signal as ItemSevenObservationSignal;
   }
   throw new Error(
-    `Signal ${signal} is outside the Item 6 observation boundary.`,
+    `Signal ${signal} is outside the Item 7 observation boundary.`,
   );
 }
 

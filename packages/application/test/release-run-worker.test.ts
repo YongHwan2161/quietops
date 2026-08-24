@@ -6,6 +6,7 @@ import { describe, it } from "node:test";
 
 import {
   RELEASE_STEWARD_TOOL_NAMES,
+  runReleaseStewardIncidentAction,
   runReleaseStewardObservation,
   type ReleaseStewardObservationResult,
 } from "@quietops/agent";
@@ -467,7 +468,7 @@ describe("durable release run worker", () => {
         assert.deepEqual(await worker.tick(), { status: "idle", runId: null });
         const remainingMs = Math.max(
           0,
-          Date.parse(authorized.receipt.nextWakeAt) - Date.now() + 30,
+          Date.parse(authorized.receipt.nextWakeAt!) - Date.now() + 30,
         );
         await new Promise((resolve) => setTimeout(resolve, remainingMs));
         const woke = await worker.tick();
@@ -536,6 +537,220 @@ describe("durable release run worker", () => {
     },
   );
 
+  it("commits authorization before one Strands incident attempt and never replays the provider", async (testContext) => {
+    const ledger = new SQLiteReleaseRunLedger();
+    const baseMs = Date.parse("2026-08-24T09:00:20.000Z");
+    const prepared = await createAwaitingDecisionRun(
+      ledger,
+      "incident-confirmed",
+      baseMs,
+    );
+    const awaiting = prepared.service.getProjection(prepared.runId);
+    const decisionCommand = {
+      decisionId: awaiting.activeDecisionId!,
+      submission: {
+        choice: "ESCALATE_INCIDENT" as const,
+        expectedRunVersion: awaiting.version,
+      },
+      idempotencyKey: "owner-incident-confirmed-1",
+      occurredAt: new Date(baseMs + 1_000).toISOString(),
+    };
+    const authorized = prepared.service.submitDecision(decisionCommand);
+    assert.equal(authorized.receipt.choice, "ESCALATE_INCIDENT");
+    assert.equal(authorized.receipt.nextWakeAt, null);
+    assert.ok(authorized.receipt.actionId);
+    assert.match(authorized.receipt.requestFingerprint!, /^[0-9a-f]{64}$/);
+    assert.equal(authorized.receipt.externalWriteAttempts, 0);
+    assert.equal(authorized.projection.state, "RESUMING");
+    assert.deepEqual(
+      ledger
+        .listEvents(prepared.runId)
+        .slice(-2)
+        .map((event) => event.eventType),
+      ["decision-recorded", "action-reserved"],
+    );
+
+    let providerCalls = 0;
+    const worker = new ReleaseRunWorker({
+      service: prepared.service,
+      workerId: "worker:incident-confirmed",
+      clock: () => new Date(baseMs + 2_000 + providerCalls),
+      runObservation: async () => {
+        throw new Error("Incident resume must not collect observations.");
+      },
+      runIncidentAction: async ({ plan }) =>
+        await runReleaseStewardIncidentAction({
+          plan,
+          modelMode: "injected-test",
+          model: new ToolSequenceModel([RELEASE_STEWARD_TOOL_NAMES.incident]),
+          executeIncident: async () => {
+            providerCalls += 1;
+            return Object.freeze({
+              status: "CONFIRMED" as const,
+              providerRecordId: "42",
+              providerUrl: "https://github.com/YongHwan2161/quietops/issues/42",
+              responseDigest: "a".repeat(64),
+              externalWriteAttempts: 1 as const,
+            });
+          },
+        }),
+    });
+    try {
+      const committed = await worker.tick();
+      assert.equal(committed.status, "committed");
+      assert.equal(committed.state, "ESCALATED");
+      assert.equal(committed.signal, "ACTION_CONFIRMED");
+      assert.equal(committed.externalWriteAttempts, 1);
+      assert.equal(providerCalls, 1);
+      assert.deepEqual(
+        ledger
+          .listEvents(prepared.runId)
+          .slice(-4)
+          .map((event) => event.eventType),
+        [
+          "decision-recorded",
+          "action-reserved",
+          "action-attempted",
+          "action-confirmed",
+        ],
+      );
+      const action = ledger.getExternalAction(authorized.receipt.actionId!);
+      assert.equal(action?.status, "CONFIRMED");
+      assert.equal(action?.attemptCount, 1);
+      assert.equal(action?.providerRecordId, "42");
+
+      const replay = prepared.service.submitDecision({
+        ...decisionCommand,
+        occurredAt: new Date(baseMs + 3_000).toISOString(),
+      });
+      assert.equal(replay.receipt.replayed, true);
+      assert.equal(replay.receipt.actionId, authorized.receipt.actionId);
+      assert.equal(
+        replay.receipt.requestFingerprint,
+        authorized.receipt.requestFingerprint,
+      );
+      assert.deepEqual(await worker.tick(), { status: "idle", runId: null });
+      assert.equal(providerCalls, 1);
+      testContext.diagnostic(
+        `item-8 confirmed evidence ${JSON.stringify({
+          actionId: action?.actionId,
+          requestFingerprint: action?.requestFingerprint,
+          eventOrder: ledger
+            .listEvents(prepared.runId)
+            .slice(-4)
+            .map((event) => event.eventType),
+          providerPostCount: providerCalls,
+          providerRecordId: action?.providerRecordId,
+          externalWriteAttempts: committed.externalWriteAttempts,
+        })}`,
+      );
+    } finally {
+      await worker.stop();
+      ledger.close();
+    }
+  });
+
+  it("turns crashes before and after provider return into terminal uncertainty without retry", async (testContext) => {
+    const cases = ["before-provider", "after-provider"] as const;
+    const evidence: Array<Record<string, unknown>> = [];
+    for (const [index, crashPoint] of cases.entries()) {
+      const directory = await mkdtemp(
+        join(tmpdir(), `quietops-${crashPoint}-`),
+      );
+      const databasePath = join(directory, "quietops.sqlite");
+      const baseMs = Date.parse("2026-08-24T10:00:20.000Z") + index * 10_000;
+      let ledger = new SQLiteReleaseRunLedger(databasePath);
+      const prepared = await createAwaitingDecisionRun(
+        ledger,
+        `incident-${crashPoint}`,
+        baseMs,
+      );
+      const awaiting = prepared.service.getProjection(prepared.runId);
+      const authorized = prepared.service.submitDecision({
+        decisionId: awaiting.activeDecisionId!,
+        submission: {
+          choice: "ESCALATE_INCIDENT",
+          expectedRunVersion: awaiting.version,
+        },
+        idempotencyKey: `owner-incident-${crashPoint}`,
+        occurredAt: new Date(baseMs + 1_000).toISOString(),
+      });
+      const claimed = prepared.service.claimNextDue(
+        `worker:${crashPoint}`,
+        new Date(baseMs + 2_000).toISOString(),
+        10_000,
+      );
+      assert.ok(claimed);
+      const begun = prepared.service.beginIncidentAction(
+        claimed,
+        new Date(baseMs + 2_000).toISOString(),
+      );
+      assert.equal(
+        ledger.getExternalAction(begun.action.actionId)?.status,
+        "IN_FLIGHT",
+      );
+      let providerCalls = 0;
+      if (crashPoint === "after-provider") {
+        const result = await runReleaseStewardIncidentAction({
+          plan: begun.plan,
+          modelMode: "injected-test",
+          model: new ToolSequenceModel([RELEASE_STEWARD_TOOL_NAMES.incident]),
+          executeIncident: async () => {
+            providerCalls += 1;
+            return Object.freeze({
+              status: "CONFIRMED" as const,
+              providerRecordId: "43",
+              providerUrl: "https://github.com/YongHwan2161/quietops/issues/43",
+              responseDigest: "b".repeat(64),
+              externalWriteAttempts: 1 as const,
+            });
+          },
+        });
+        assert.equal(result.action.status, "CONFIRMED");
+      }
+      ledger.close();
+
+      ledger = new SQLiteReleaseRunLedger(databasePath);
+      const restarted = new ReleaseRunService(ledger);
+      const recovered = restarted.recoverAbandonedWork(
+        new Date(baseMs + 12_001).toISOString(),
+      );
+      assert.equal(recovered.uncertainActions, 1);
+      const action = ledger.getExternalAction(authorized.receipt.actionId!);
+      assert.equal(action?.status, "UNCERTAIN");
+      assert.equal(action?.attemptCount, 1);
+      assert.equal(restarted.getProjection(prepared.runId).state, "STOPPED");
+      const retryGuard = new ReleaseRunWorker({
+        service: restarted,
+        workerId: `worker:${crashPoint}:retry-guard`,
+        clock: () => new Date(baseMs + 3_000),
+        runObservation: async () => {
+          throw new Error("Recovered action must not observe.");
+        },
+        runIncidentAction: async () => {
+          providerCalls += 1;
+          throw new Error("Recovered action must not call the provider.");
+        },
+      });
+      assert.deepEqual(await retryGuard.tick(), {
+        status: "idle",
+        runId: null,
+      });
+      assert.equal(providerCalls, crashPoint === "before-provider" ? 0 : 1);
+      evidence.push({
+        crashPoint,
+        providerPostCount: providerCalls,
+        finalStatus: action?.status,
+        attemptCount: action?.attemptCount,
+        ambiguityCode: "ACTION_OUTCOME_UNCERTAIN",
+      });
+      await retryGuard.stop();
+      ledger.close();
+      await rm(directory, { recursive: true, force: true });
+    }
+    testContext.diagnostic(`item-8 crash evidence ${JSON.stringify(evidence)}`);
+  });
+
   it("stops an exhausted authorized extension without another prompt", async () => {
     const ledger = new SQLiteReleaseRunLedger();
     const prepared = await createAwaitingDecisionRun(
@@ -553,7 +768,7 @@ describe("durable release run worker", () => {
       idempotencyKey: "owner-extension-exhausted-1",
       occurredAt: "2026-08-24T06:00:20.000Z",
     });
-    let now = Date.parse(authorized.receipt.nextWakeAt);
+    let now = Date.parse(authorized.receipt.nextWakeAt!);
     const worker = new ReleaseRunWorker({
       service: prepared.service,
       workerId: "worker:extension-exhausted",

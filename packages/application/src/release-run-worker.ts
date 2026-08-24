@@ -1,5 +1,6 @@
 import {
   ReleaseStewardPostconditionError,
+  type ReleaseStewardIncidentActionResult,
   type ReleaseStewardObservationPhase,
   type ReleaseStewardObservationResult,
 } from "@quietops/agent";
@@ -9,6 +10,7 @@ import {
   HOMEPAGE_SMOKE_ERROR_CODES,
   HomepageSmokeError,
   GitHubEvidenceError,
+  type GitHubIncidentPlan,
 } from "@quietops/adapters";
 import type { ReleaseRunSignal } from "@quietops/contracts";
 
@@ -44,10 +46,21 @@ export type ReleaseRunObservationRunner = (
   request: Readonly<ReleaseRunObservationRequest>,
 ) => Promise<Readonly<ReleaseStewardObservationResult>>;
 
+export interface ReleaseRunIncidentActionRequest {
+  readonly actionId: string;
+  readonly plan: Readonly<GitHubIncidentPlan>;
+  readonly providerTimeoutMs: number;
+}
+
+export type ReleaseRunIncidentActionRunner = (
+  request: Readonly<ReleaseRunIncidentActionRequest>,
+) => Promise<Readonly<ReleaseStewardIncidentActionResult>>;
+
 export interface ReleaseRunWorkerOptions {
   readonly service: ReleaseRunService;
   readonly workerId: string;
   readonly runObservation: ReleaseRunObservationRunner;
+  readonly runIncidentAction?: ReleaseRunIncidentActionRunner;
   readonly clock?: () => Date;
   readonly pollIntervalMs?: number;
   readonly leaseDurationMs?: number;
@@ -82,6 +95,7 @@ export class ReleaseRunWorker {
   readonly #service: ReleaseRunService;
   readonly #workerId: string;
   readonly #runObservation: ReleaseRunObservationRunner;
+  readonly #runIncidentAction: ReleaseRunIncidentActionRunner | undefined;
   readonly #clock: () => Date;
   readonly #pollIntervalMs: number;
   readonly #leaseDurationMs: number;
@@ -98,6 +112,7 @@ export class ReleaseRunWorker {
     this.#service = options.service;
     this.#workerId = requireWorkerId(options.workerId);
     this.#runObservation = options.runObservation;
+    this.#runIncidentAction = options.runIncidentAction;
     this.#clock = options.clock ?? (() => new Date());
     this.#pollIntervalMs = boundedDuration(
       options.pollIntervalMs,
@@ -194,6 +209,7 @@ export class ReleaseRunWorker {
 
   async #executeOne(): Promise<ReleaseRunWorkerTickResult> {
     const claimTime = this.#now();
+    this.#service.recoverAbandonedWork(claimTime);
     const claim = this.#service.claimNextDue(
       this.#workerId,
       claimTime,
@@ -209,10 +225,68 @@ export class ReleaseRunWorker {
       const projection = this.#service.expireDecision(claim, claimTime);
       return committedTick(projection, "DECISION_EXPIRED");
     }
-    if (claim.head.state !== "MONITORING") {
-      throw new Error(
-        `Release worker cannot process ${claim.head.state} before Item 8.`,
+    if (claim.head.state === "RESUMING") {
+      if (!this.#runIncidentAction) {
+        throw new Error(
+          "Release worker cannot resume an incident without injected action authority.",
+        );
+      }
+      const begun = this.#service.beginIncidentAction(claim, claimTime);
+      let actionResult:
+        Readonly<ReleaseStewardIncidentActionResult> | undefined;
+      try {
+        actionResult = await this.#runIncidentAction({
+          actionId: begun.action.actionId,
+          plan: begun.plan,
+          providerTimeoutMs: claim.run.policyProfile.providerTimeoutMs,
+        });
+      } catch {
+        const projection = this.#service.finishIncidentAction(
+          begun.action.actionId,
+          {
+            status: "UNCERTAIN",
+            providerRecordId: null,
+            providerUrl: null,
+            responseDigest: null,
+            externalWriteAttempts: 1,
+          },
+          this.#now(),
+        );
+        return committedTick(projection, "ACTION_UNCERTAIN");
+      }
+      if (
+        actionResult.requestFingerprint !== begun.plan.requestFingerprint ||
+        actionResult.externalWriteAttempts !== 1
+      ) {
+        const projection = this.#service.finishIncidentAction(
+          begun.action.actionId,
+          {
+            status: "UNCERTAIN",
+            providerRecordId: null,
+            providerUrl: null,
+            responseDigest: null,
+            externalWriteAttempts: 1,
+          },
+          this.#now(),
+        );
+        return committedTick(projection, "ACTION_UNCERTAIN");
+      }
+      const projection = this.#service.finishIncidentAction(
+        begun.action.actionId,
+        actionResult.action,
+        this.#now(),
       );
+      return committedTick(
+        projection,
+        actionResult.action.status === "CONFIRMED"
+          ? "ACTION_CONFIRMED"
+          : actionResult.action.status === "REJECTED"
+            ? "ACTION_REJECTED"
+            : "ACTION_UNCERTAIN",
+      );
+    }
+    if (claim.head.state !== "MONITORING") {
+      throw new Error(`Release worker cannot process ${claim.head.state}.`);
     }
     const request = observationRequest(claim, claimTime);
     let result: Readonly<ReleaseStewardObservationResult>;

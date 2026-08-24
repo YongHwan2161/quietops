@@ -12,7 +12,6 @@ import {
   EvaluationAlreadyResolvedError,
   EvaluationNotFoundError,
   EvaluationService,
-  ReleaseDecisionChoiceUnavailableError,
   ReleaseDecisionExpiredError,
   ReleaseDecisionNotFoundError,
   ReleaseRunService,
@@ -247,7 +246,6 @@ export async function createQuietOpsServer(
       error instanceof DecisionNotAllowedError ||
       error instanceof EvaluationAlreadyResolvedError ||
       error instanceof IdempotencyConflictError ||
-      error instanceof ReleaseDecisionChoiceUnavailableError ||
       error instanceof ReleaseRunConcurrencyError ||
       error instanceof ReleaseRunStateError
     ) {

@@ -2,7 +2,7 @@
 
 ## Status
 
-`ITEM_7_COMPLETE_ITEM_8_HOLD`
+`ITEM_8_COMPLETE_ITEM_9_HOLD`
 
 This checklist is the implementation contract for the
 [technical specification](AUTONOMOUS_RELEASE_STEWARD_TECHNICAL_SPEC_2026-08-23.md).
@@ -186,7 +186,7 @@ documentation PR is reviewed and the user explicitly advances to the build.
       HOLD/rollback: Stop if actor/authority comes from a browser body, the token is
       persisted, or wait creates another decision. Revert Item 7 only.
 
-- [ ] **8. Add the one-attempt incident action behind injected authority**
+- [x] **8. Add the one-attempt incident action behind injected authority**
       Spec ref: `Autonomous Release Steward Technical Spec > Authorized incident action`
       What to build: Add the fixed-repository issue adapter, stable request
       fingerprint, authorized Strands action invocation, and

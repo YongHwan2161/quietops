@@ -47,3 +47,14 @@ export {
   type GitHubWebhookRequestErrorCode,
   type InspectGitHubPushWebhookInput,
 } from "./github-webhook.js";
+export {
+  QUIETOPS_GITHUB_INCIDENT_TARGET,
+  buildGitHubIncidentPlan,
+  executeGitHubIncident,
+  normalizeGitHubIssueToken,
+  type ExecuteGitHubIncidentOptions,
+  type GitHubIncidentActionResult,
+  type GitHubIncidentContext,
+  type GitHubIncidentEvidenceLink,
+  type GitHubIncidentPlan,
+} from "./github-incident.js";

@@ -128,7 +128,7 @@ test("authenticates the release owner, replays once, and rejects every stale or 
     assert.equal(firstBody.receipt.runId, active.runId);
     assert.equal(firstBody.receipt.actor, "release-owner");
     assert.equal(firstBody.receipt.authorizedAt, AUTHORIZED_AT);
-    assert.equal(firstBody.receipt.authorizedRunVersion, 3);
+    assert.equal(firstBody.receipt.authorizedRunVersion, 4);
     assert.equal(firstBody.receipt.replayed, false);
     assert.equal(firstBody.receipt.externalWriteAttempts, 0);
     assert.equal(firstBody.run.state, "WAITING");
@@ -187,23 +187,36 @@ test("authenticates the release owner, replays once, and rejects every stale or 
     assert.equal(stale.statusCode, 409);
     assert.equal(stale.json().error.code, "RELEASE_RUN_CONCURRENCY_CONFLICT");
 
-    const heldEscalation = await app.inject({
+    const authorizedEscalation = await app.inject({
       method: "POST",
       url: `/api/decisions/${escalation.decisionId}`,
       headers: {
         authorization: `Bearer ${OPERATOR_TOKEN}`,
-        "idempotency-key": "held-escalation-1",
+        "idempotency-key": "authorized-escalation-1",
       },
       payload: {
         choice: "ESCALATE_INCIDENT",
         expectedRunVersion: escalation.expectedRunVersion,
       },
     });
-    assert.equal(heldEscalation.statusCode, 409);
-    assert.equal(
-      heldEscalation.json().error.code,
-      "RELEASE_DECISION_CHOICE_UNAVAILABLE",
-    );
+    assert.equal(authorizedEscalation.statusCode, 200);
+    const escalationBody = authorizedEscalation.json<{
+      receipt: {
+        choice: string;
+        actionId: string;
+        requestFingerprint: string;
+        nextWakeAt: null;
+        externalWriteAttempts: number;
+      };
+      run: { state: string; externalWriteAttempts: number };
+    }>();
+    assert.equal(escalationBody.receipt.choice, "ESCALATE_INCIDENT");
+    assert.match(escalationBody.receipt.actionId, /^github-incident:/);
+    assert.match(escalationBody.receipt.requestFingerprint, /^[0-9a-f]{64}$/);
+    assert.equal(escalationBody.receipt.nextWakeAt, null);
+    assert.equal(escalationBody.receipt.externalWriteAttempts, 0);
+    assert.equal(escalationBody.run.state, "RESUMING");
+    assert.equal(escalationBody.run.externalWriteAttempts, 0);
 
     const expiredResponse = await app.inject({
       method: "POST",
@@ -244,9 +257,21 @@ test("authenticates the release owner, replays once, and rejects every stale or 
       1,
     );
     assert.equal(activeEvents.at(-1)?.payload.actor, "release-owner");
+    assert.equal(observer.getHead(escalation.runId)?.state, "RESUMING");
+    const escalationEvents = observer.listEvents(escalation.runId);
+    assert.deepEqual(
+      escalationEvents.slice(-2).map((event) => event.eventType),
+      ["decision-recorded", "action-reserved"],
+    );
+    const actionId = escalationEvents.at(-1)?.payload.actionId;
+    assert.equal(typeof actionId, "string");
     assert.equal(
-      observer.getHead(escalation.runId)?.state,
-      "AWAITING_DECISION",
+      observer.getExternalAction(actionId as string)?.status,
+      "RESERVED",
+    );
+    assert.equal(
+      observer.getExternalAction(actionId as string)?.attemptCount,
+      0,
     );
     assert.equal(observer.getHead(expired.runId)?.state, "AWAITING_DECISION");
     assert.equal(observer.checkIntegrity(), "ok");
@@ -291,22 +316,24 @@ function createAwaitingDecision(
     decisionId,
     runId,
     candidateCommit: CANDIDATE,
-    expectedRunVersion: 2,
+    expectedRunVersion: 3,
     evidence: {
       source: {
-        evidenceId: `source-${suffix}`,
+        evidenceId: `github-commit:${CANDIDATE}`,
         fetchedAt: "2026-08-24T08:00:01.000Z",
       },
       ci: {
-        evidenceId: `ci-${suffix}`,
+        evidenceId: "github-actions-run:32689002351",
         fetchedAt: "2026-08-24T08:00:02.000Z",
       },
       deployment: {
-        evidenceId: `deployment-${suffix}`,
+        evidenceId:
+          "deployment-marker:1111111111111111111111111111111111111111",
         fetchedAt: "2026-08-24T08:00:28.000Z",
       },
       homepageSmoke: {
-        evidenceId: `smoke-${suffix}`,
+        evidenceId:
+          "homepage-smoke:quietops-production.up.railway.app:2026-08-24T08:00:29.000Z",
         fetchedAt: "2026-08-24T08:00:29.000Z",
       },
     },
@@ -335,8 +362,96 @@ function createAwaitingDecision(
     expectedVersion: 1,
     events: [
       {
-        eventId: `event-decision-request-${suffix}`,
+        eventId: `event-observation-${suffix}`,
         sequence: 2,
+        eventType: "observation-recorded",
+        occurredAt: "2026-08-24T08:00:29.000Z",
+        payload: {
+          cycleId: `cycle-${suffix}`,
+          phase: "LATER_OBSERVATION",
+          candidateCommit: CANDIDATE,
+          modelMode: "injected-test",
+          policySignal: "NORMAL_WAIT_REQUIRED",
+          evidence: [
+            {
+              evidenceId: `github-commit:${CANDIDATE}`,
+              kind: "Source revision",
+              status: "Verified",
+              value: CANDIDATE,
+            },
+            {
+              evidenceId: "github-actions-run:32689002351",
+              kind: "CI status",
+              status: "Verified",
+              value: "success",
+              headSha: CANDIDATE,
+            },
+            {
+              evidenceId:
+                "deployment-marker:1111111111111111111111111111111111111111",
+              kind: "Deployed revision",
+              status: "Verified",
+              value: "1111111111111111111111111111111111111111",
+            },
+            {
+              evidenceId:
+                "homepage-smoke:quietops-production.up.railway.app:2026-08-24T08:00:29.000Z",
+              kind: "Homepage smoke",
+              status: "Verified",
+              value: "healthy",
+            },
+          ],
+          receipts: [
+            {
+              toolName: "inspect_source_revision",
+              evidenceId: `github-commit:${CANDIDATE}`,
+              provider: "github-rest",
+              providerRecordId: CANDIDATE,
+              sourceUrl: `https://github.com/YongHwan2161/quietops/commit/${CANDIDATE}`,
+              fetchedAt: "2026-08-24T08:00:01.000Z",
+              externalMutations: 0,
+            },
+            {
+              toolName: "inspect_required_ci",
+              evidenceId: "github-actions-run:32689002351",
+              provider: "github-actions",
+              providerRecordId: "32689002351",
+              sourceUrl:
+                "https://github.com/YongHwan2161/quietops/actions/runs/32689002351",
+              fetchedAt: "2026-08-24T08:00:02.000Z",
+              externalMutations: 0,
+            },
+            {
+              toolName: "inspect_deployed_revision",
+              evidenceId:
+                "deployment-marker:1111111111111111111111111111111111111111",
+              provider: "railway-public-marker",
+              providerRecordId: "1111111111111111111111111111111111111111",
+              sourceUrl:
+                "https://quietops-production.up.railway.app/.well-known/quietops-release.json",
+              fetchedAt: "2026-08-24T08:00:28.000Z",
+              externalMutations: 0,
+            },
+            {
+              toolName: "inspect_homepage_smoke",
+              evidenceId:
+                "homepage-smoke:quietops-production.up.railway.app:2026-08-24T08:00:29.000Z",
+              provider: "quietops-homepage",
+              providerRecordId: "healthy",
+              sourceUrl: "https://quietops-production.up.railway.app/",
+              fetchedAt: "2026-08-24T08:00:29.000Z",
+              externalMutations: 0,
+            },
+          ],
+          toolCallCounts: {},
+          evidenceCount: 4,
+          receiptCount: 4,
+          externalMutations: 0,
+        },
+      },
+      {
+        eventId: `event-decision-request-${suffix}`,
+        sequence: 3,
         eventType: "decision-requested",
         occurredAt: requestedAt,
         payload: {
@@ -356,5 +471,5 @@ function createAwaitingDecision(
       updatedAt: requestedAt,
     },
   });
-  return Object.freeze({ runId, decisionId, expectedRunVersion: 2 });
+  return Object.freeze({ runId, decisionId, expectedRunVersion: 3 });
 }

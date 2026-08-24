@@ -86,3 +86,9 @@ export {
   type ReleaseStewardObservationResult,
   type RunReleaseStewardObservationOptions,
 } from "./release-steward.js";
+export {
+  runReleaseStewardIncidentAction,
+  type GitHubIncidentExecutor,
+  type ReleaseStewardIncidentActionResult,
+  type RunReleaseStewardIncidentActionOptions,
+} from "./release-steward-action.js";

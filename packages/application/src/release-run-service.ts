@@ -1,6 +1,12 @@
 import { createHash, randomUUID } from "node:crypto";
 
 import type {
+  GitHubIncidentActionResult,
+  GitHubIncidentEvidenceLink,
+  GitHubIncidentPlan,
+} from "@quietops/adapters";
+import { buildGitHubIncidentPlan } from "@quietops/adapters";
+import type {
   ReleaseStewardObservationResult,
   ReleaseStewardToolReceipt,
 } from "@quietops/agent";
@@ -26,7 +32,9 @@ import {
   ReleaseRunStateError,
   SQLiteReleaseRunLedger,
   type JsonObject,
+  type RecoverAbandonedWorkResult,
   type StoredReleaseRun,
+  type StoredExternalAction,
   type StoredReleaseRunEvent,
   type StoredReleaseRunHead,
 } from "@quietops/storage";
@@ -72,6 +80,7 @@ export interface ClaimedReleaseRun {
   readonly decisionCount: number;
   readonly decisionChoice: DecisionChoice | null;
   readonly immutableEvidence: Readonly<ImmutableObservationEvidence> | null;
+  readonly externalAction: Readonly<StoredExternalAction> | null;
 }
 
 export interface CommitReleaseObservation {
@@ -91,11 +100,13 @@ export interface ReleaseDecisionReceipt {
   readonly decisionId: string;
   readonly runId: string;
   readonly candidateCommit: string;
-  readonly choice: "WAIT_AND_RECHECK";
+  readonly choice: DecisionChoice;
   readonly actor: "release-owner";
   readonly authorizedAt: string;
   readonly authorizedRunVersion: number;
-  readonly nextWakeAt: string;
+  readonly nextWakeAt: string | null;
+  readonly actionId: string | null;
+  readonly requestFingerprint: string | null;
   readonly replayed: boolean;
   readonly externalWriteAttempts: 0;
 }
@@ -123,13 +134,9 @@ export class ReleaseDecisionExpiredError extends Error {
   }
 }
 
-export class ReleaseDecisionChoiceUnavailableError extends Error {
-  readonly code = "RELEASE_DECISION_CHOICE_UNAVAILABLE" as const;
-
-  constructor() {
-    super("Incident escalation remains unavailable before checklist Item 8.");
-    this.name = "ReleaseDecisionChoiceUnavailableError";
-  }
+export interface BegunIncidentAction {
+  readonly action: Readonly<StoredExternalAction>;
+  readonly plan: Readonly<GitHubIncidentPlan>;
 }
 
 export interface ReleaseRunProjection {
@@ -203,6 +210,7 @@ export class ReleaseRunService {
     const run = this.#ledger.getRun(head.runId);
     if (!run) throw new Error(`Claimed release run ${head.runId} is missing.`);
     const events = this.#ledger.listEvents(run.runId);
+    const actionId = readReservedActionId(events);
     return Object.freeze({
       run,
       head,
@@ -211,6 +219,9 @@ export class ReleaseRunService {
       decisionCount: countEvents(events, "decision-requested"),
       decisionChoice: readRecordedDecisionChoice(events),
       immutableEvidence: readImmutableObservationEvidence(events),
+      externalAction: actionId
+        ? (this.#ledger.getExternalAction(actionId) ?? null)
+        : null,
     });
   }
 
@@ -231,14 +242,26 @@ export class ReleaseRunService {
     ) {
       throw new Error("Stored decision envelope identity is invalid.");
     }
-    if (submission.choice !== "WAIT_AND_RECHECK") {
-      throw new ReleaseDecisionChoiceUnavailableError();
-    }
-
-    const waitUntil = new Date(
-      Date.parse(command.occurredAt) +
-        envelope.policyProfile.authorizedExtensionMs,
-    ).toISOString();
+    const existingAuthorization = findDecisionAuthorization(
+      this.#ledger.listEvents(envelope.runId),
+      envelope.decisionId,
+    );
+    const authorizedAt =
+      existingAuthorization?.occurredAt ?? command.occurredAt;
+    const waitUntil =
+      submission.choice === "WAIT_AND_RECHECK"
+        ? new Date(
+            Date.parse(authorizedAt) +
+              envelope.policyProfile.authorizedExtensionMs,
+          ).toISOString()
+        : null;
+    const incidentPlan =
+      submission.choice === "ESCALATE_INCIDENT"
+        ? this.#buildIncidentPlan(envelope, authorizedAt)
+        : null;
+    const actionId = incidentPlan
+      ? incidentActionId(envelope.decisionId)
+      : null;
     let stored;
     try {
       stored = this.#ledger.recordDecision({
@@ -248,12 +271,18 @@ export class ReleaseRunService {
         expectedRunVersion: submission.expectedRunVersion,
         idempotencyKey: command.idempotencyKey,
         eventId: this.#idFactory("event"),
-        actionEventId: null,
+        actionEventId: actionId ? this.#idFactory("event") : null,
         choice: submission.choice,
         actor: "release-owner",
-        occurredAt: command.occurredAt,
+        occurredAt: authorizedAt,
         waitUntil,
-        action: null,
+        action:
+          actionId && incidentPlan
+            ? {
+                actionId,
+                requestFingerprint: incidentPlan.requestFingerprint,
+              }
+            : null,
       });
     } catch (error) {
       if (
@@ -274,16 +303,92 @@ export class ReleaseRunService {
         decisionId: envelope.decisionId,
         runId: envelope.runId,
         candidateCommit: envelope.candidateCommit,
-        choice: "WAIT_AND_RECHECK",
+        choice: authorization.choice,
         actor: "release-owner",
         authorizedAt: authorization.occurredAt,
         authorizedRunVersion: stored.version,
         nextWakeAt: authorization.nextWakeAt,
+        actionId: authorization.actionId,
+        requestFingerprint: authorization.requestFingerprint,
         replayed: stored.replayed,
         externalWriteAttempts: 0,
       }),
       projection: this.getProjection(envelope.runId),
     });
+  }
+
+  recoverAbandonedWork(now: string): Readonly<RecoverAbandonedWorkResult> {
+    return this.#ledger.recoverAbandonedWork(now);
+  }
+
+  beginIncidentAction(
+    claim: Readonly<ClaimedReleaseRun>,
+    occurredAt: string,
+  ): Readonly<BegunIncidentAction> {
+    if (
+      claim.head.state !== "RESUMING" ||
+      claim.head.leaseOwner === null ||
+      claim.decisionChoice !== "ESCALATE_INCIDENT" ||
+      claim.externalAction === null
+    ) {
+      throw new Error("Incident action requires one leased RESUMING run.");
+    }
+    if (
+      claim.externalAction.status !== "RESERVED" ||
+      claim.externalAction.attemptCount !== 0
+    ) {
+      throw new Error("Incident action is not available for a first attempt.");
+    }
+    if (
+      claim.head.leaseExpiresAt === null ||
+      Date.parse(claim.head.leaseExpiresAt) - Date.parse(occurredAt) <
+        claim.run.policyProfile.providerTimeoutMs + 1_000
+    ) {
+      throw new Error(
+        "Incident action lease must outlast the provider timeout boundary.",
+      );
+    }
+    const requestEvent = this.#ledger.findDecisionRequest(
+      readRequiredDecisionId(this.#ledger.listEvents(claim.run.runId)),
+    );
+    if (!requestEvent) {
+      throw new Error("Incident action decision request is missing.");
+    }
+    const envelope = parseDecisionEnvelope(
+      requestEvent.payload.decisionEnvelope,
+    );
+    const authorization = readDecisionAuthorization(
+      this.#ledger.listEvents(claim.run.runId),
+      envelope.decisionId,
+    );
+    const plan = this.#buildIncidentPlan(envelope, authorization.occurredAt);
+    if (plan.requestFingerprint !== claim.externalAction.requestFingerprint) {
+      throw new Error(
+        "Reserved incident fingerprint no longer matches evidence.",
+      );
+    }
+    const action = this.#ledger.beginExternalAction({
+      actionId: claim.externalAction.actionId,
+      expectedRunVersion: claim.head.version,
+      eventId: this.#idFactory("event"),
+      occurredAt,
+    });
+    return Object.freeze({ action, plan });
+  }
+
+  finishIncidentAction(
+    actionId: string,
+    result: Readonly<GitHubIncidentActionResult>,
+    occurredAt: string,
+  ): Readonly<ReleaseRunProjection> {
+    const finished = this.#ledger.finishExternalAction({
+      actionId,
+      idempotencyKey: `finish:${actionId}`,
+      eventId: this.#idFactory("event"),
+      occurredAt,
+      result,
+    });
+    return this.getProjection(finished.runId);
   }
 
   commitObservation(
@@ -548,6 +653,42 @@ export class ReleaseRunService {
       nextHead,
     });
   }
+
+  #buildIncidentPlan(
+    envelope: Readonly<DecisionEnvelope>,
+    authorizedAt: string,
+  ): Readonly<GitHubIncidentPlan> {
+    const run = this.#ledger.getRun(envelope.runId);
+    if (!run || run.candidateCommit !== envelope.candidateCommit) {
+      throw new Error("Incident decision no longer matches its release run.");
+    }
+    const events = this.#ledger.listEvents(envelope.runId);
+    const projection = projectReleaseRun(
+      run,
+      this.#ledger.getHead(envelope.runId)!,
+      events,
+    );
+    return buildGitHubIncidentPlan({
+      runId: envelope.runId,
+      candidateCommit: envelope.candidateCommit,
+      decisionId: envelope.decisionId,
+      authorizedAt,
+      observationCount: envelope.observationCount,
+      measuredWaitMs: projection.measuredWaitMs,
+      evidence: {
+        source: readIncidentEvidenceLink(events, envelope.evidence.source),
+        ci: readIncidentEvidenceLink(events, envelope.evidence.ci),
+        deployment: readIncidentEvidenceLink(
+          events,
+          envelope.evidence.deployment,
+        ),
+        homepageSmoke: readIncidentEvidenceLink(
+          events,
+          envelope.evidence.homepageSmoke,
+        ),
+      },
+    });
+  }
 }
 
 function observationPayload(
@@ -776,26 +917,153 @@ function readRecordedDecisionChoice(
 function readDecisionAuthorization(
   events: readonly StoredReleaseRunEvent[],
   decisionId: string,
-): Readonly<{ occurredAt: string; nextWakeAt: string }> {
+): Readonly<{
+  occurredAt: string;
+  choice: DecisionChoice;
+  nextWakeAt: string | null;
+  actionId: string | null;
+  requestFingerprint: string | null;
+}> {
+  const authorization = findDecisionAuthorization(events, decisionId);
+  if (!authorization) {
+    throw new Error("Stored release authorization receipt is invalid.");
+  }
+  return authorization;
+}
+
+function findDecisionAuthorization(
+  events: readonly StoredReleaseRunEvent[],
+  decisionId: string,
+): Readonly<{
+  occurredAt: string;
+  choice: DecisionChoice;
+  nextWakeAt: string | null;
+  actionId: string | null;
+  requestFingerprint: string | null;
+}> | null {
   const records = events.filter(
     (event) =>
       event.eventType === "decision-recorded" &&
       event.payload.decisionId === decisionId,
   );
+  if (records.length === 0) return null;
   const event = records[0];
   if (
     records.length !== 1 ||
     !event ||
-    event.payload.choice !== "WAIT_AND_RECHECK" ||
-    event.payload.actor !== "release-owner" ||
-    typeof event.payload.nextWakeAt !== "string"
+    event.payload.actor !== "release-owner"
+  ) {
+    throw new Error("Stored release authorization receipt is invalid.");
+  }
+  const choice = parseDecisionChoice(event.payload.choice);
+  const actionEvent =
+    choice === "ESCALATE_INCIDENT"
+      ? events.find((candidate) => candidate.eventType === "action-reserved")
+      : undefined;
+  if (
+    (choice === "WAIT_AND_RECHECK" &&
+      typeof event.payload.nextWakeAt !== "string") ||
+    (choice === "ESCALATE_INCIDENT" &&
+      (event.payload.nextWakeAt !== null ||
+        !actionEvent ||
+        typeof actionEvent.payload.actionId !== "string" ||
+        typeof actionEvent.payload.requestFingerprint !== "string"))
   ) {
     throw new Error("Stored release authorization receipt is invalid.");
   }
   return Object.freeze({
     occurredAt: event.occurredAt,
-    nextWakeAt: event.payload.nextWakeAt,
+    choice,
+    nextWakeAt:
+      typeof event.payload.nextWakeAt === "string"
+        ? event.payload.nextWakeAt
+        : null,
+    actionId:
+      typeof actionEvent?.payload.actionId === "string"
+        ? actionEvent.payload.actionId
+        : null,
+    requestFingerprint:
+      typeof actionEvent?.payload.requestFingerprint === "string"
+        ? actionEvent.payload.requestFingerprint
+        : null,
   });
+}
+
+function readReservedActionId(
+  events: readonly StoredReleaseRunEvent[],
+): string | null {
+  const reservations = events.filter(
+    (event) => event.eventType === "action-reserved",
+  );
+  if (reservations.length === 0) return null;
+  if (
+    reservations.length !== 1 ||
+    typeof reservations[0]?.payload.actionId !== "string"
+  ) {
+    throw new Error("Stored incident action reservation is invalid.");
+  }
+  return reservations[0].payload.actionId;
+}
+
+function readRequiredDecisionId(
+  events: readonly StoredReleaseRunEvent[],
+): string {
+  const requests = events.filter(
+    (event) => event.eventType === "decision-requested",
+  );
+  if (
+    requests.length !== 1 ||
+    typeof requests[0]?.payload.decisionId !== "string"
+  ) {
+    throw new Error("Stored release decision request is invalid.");
+  }
+  return requests[0].payload.decisionId;
+}
+
+function readIncidentEvidenceLink(
+  events: readonly StoredReleaseRunEvent[],
+  reference: Readonly<DecisionEvidenceReference>,
+): Readonly<GitHubIncidentEvidenceLink> {
+  const matches: GitHubIncidentEvidenceLink[] = [];
+  for (const event of events) {
+    if (event.eventType !== "observation-recorded") continue;
+    const receipts = event.payload.receipts;
+    if (!Array.isArray(receipts)) continue;
+    for (const receipt of receipts) {
+      if (
+        isJsonObject(receipt) &&
+        receipt.evidenceId === reference.evidenceId &&
+        receipt.fetchedAt === reference.fetchedAt &&
+        typeof receipt.sourceUrl === "string"
+      ) {
+        matches.push({
+          evidenceId: reference.evidenceId,
+          fetchedAt: reference.fetchedAt,
+          sourceUrl: receipt.sourceUrl,
+        });
+      }
+    }
+  }
+  const uniqueMatches = [
+    ...new Map(
+      matches.map((match) => [
+        `${match.evidenceId}\n${match.fetchedAt}\n${match.sourceUrl}`,
+        match,
+      ]),
+    ).values(),
+  ];
+  if (uniqueMatches.length !== 1 || !uniqueMatches[0]) {
+    throw new Error(
+      `Incident evidence ${reference.evidenceId} requires one bound source URL.`,
+    );
+  }
+  return Object.freeze(uniqueMatches[0]);
+}
+
+function incidentActionId(decisionId: string): string {
+  return `github-incident:${createHash("sha256")
+    .update(`release-decision:${decisionId}`)
+    .digest("hex")}`;
 }
 
 function requireItemSevenObservationSignal(

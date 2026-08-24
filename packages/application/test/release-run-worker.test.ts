@@ -14,6 +14,12 @@ import type {
   GitHubEvidenceBundle,
   HomepageSmokeBundle,
 } from "@quietops/adapters";
+import {
+  DEPLOYMENT_EVIDENCE_ERROR_CODES,
+  DeploymentEvidenceError,
+  HOMEPAGE_SMOKE_ERROR_CODES,
+  HomepageSmokeError,
+} from "@quietops/adapters";
 import { resolvePolicyProfile } from "@quietops/contracts";
 import { SQLiteReleaseRunLedger } from "@quietops/storage";
 import {
@@ -24,9 +30,14 @@ import {
   type StreamOptions,
 } from "@strands-agents/sdk";
 
-import { ReleaseRunService, ReleaseRunWorker } from "../src/index.js";
+import {
+  ReleaseRunService,
+  ReleaseRunWorker,
+  type ReleaseRunObservationRequest,
+} from "../src/index.js";
 
 const CANDIDATE = "b865758a03352aab76c3a9f0319b80fae4f51acc";
+const OLD_DEPLOYMENT = "1111111111111111111111111111111111111111";
 const OCCURRED_AT = "2026-08-24T05:00:00.000Z";
 const OBSERVED_AT = "2026-08-24T05:00:01.000Z";
 
@@ -50,18 +61,15 @@ describe("durable release run worker", () => {
     let githubCollections = 0;
     let deploymentCollections = 0;
     let smokeCollections = 0;
-    const runObservation = async (request: {
-      readonly candidateCommit: string;
-      readonly phase: "FIRST_OBSERVATION";
-      readonly recheckProposal: {
-        readonly waitUntil: string;
-        readonly durationMs: number;
-        readonly policyProfile: string;
-      };
-    }) =>
+    const runObservation = async (
+      request: Readonly<ReleaseRunObservationRequest>,
+    ) =>
       await runReleaseStewardObservation({
         phase: request.phase,
         candidateCommit: request.candidateCommit,
+        ...(request.immutableEvidenceIds
+          ? { immutableEvidenceIds: request.immutableEvidenceIds }
+          : {}),
         modelMode: "injected-test",
         model: new ToolSequenceModel([
           RELEASE_STEWARD_TOOL_NAMES.source,
@@ -160,6 +168,329 @@ describe("durable release run worker", () => {
     } finally {
       reopenedLedger.close();
       await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it(
+    "persists a real five-second wait, resumes the same run after restart, asks once, and expires without action",
+    { timeout: 15_000 },
+    async (testContext) => {
+      const directory = await mkdtemp(join(tmpdir(), "quietops-real-wait-"));
+      const databasePath = join(directory, "quietops.sqlite");
+      let ledger = new SQLiteReleaseRunLedger(databasePath);
+      let id = 0;
+      let observationCalls = 0;
+      const createService = () =>
+        new ReleaseRunService(ledger, {
+          idFactory: (kind) => `${kind}:real-wait-${++id}`,
+        });
+      let service = createService();
+      const trigger = service.createFromTrigger({
+        candidateCommit: CANDIDATE,
+        deliveryId: "12345678-aaaa-bbbb-cccc-123456789abc",
+        policyProfile: resolvePolicyProfile("demo-v1"),
+        occurredAt: new Date().toISOString(),
+      });
+      const runObservation = async (
+        request: Readonly<ReleaseRunObservationRequest>,
+      ) => {
+        observationCalls += 1;
+        const fetchedAt = new Date().toISOString();
+        const toolNames =
+          request.phase === "FIRST_OBSERVATION"
+            ? [
+                RELEASE_STEWARD_TOOL_NAMES.source,
+                RELEASE_STEWARD_TOOL_NAMES.ci,
+                RELEASE_STEWARD_TOOL_NAMES.deployment,
+                RELEASE_STEWARD_TOOL_NAMES.smoke,
+                RELEASE_STEWARD_TOOL_NAMES.recheck,
+              ]
+            : [
+                RELEASE_STEWARD_TOOL_NAMES.deployment,
+                RELEASE_STEWARD_TOOL_NAMES.smoke,
+                RELEASE_STEWARD_TOOL_NAMES.recheck,
+              ];
+        return await runReleaseStewardObservation({
+          phase: request.phase,
+          candidateCommit: request.candidateCommit,
+          ...(request.immutableEvidenceIds
+            ? { immutableEvidenceIds: request.immutableEvidenceIds }
+            : {}),
+          modelMode: "injected-test",
+          model: new ToolSequenceModel(toolNames),
+          githubCollector: async () => githubBundle(fetchedAt),
+          deploymentCollector: async () =>
+            deploymentBundle(OLD_DEPLOYMENT, fetchedAt),
+          homepageCollector: async () => homepageBundle(fetchedAt),
+          recheckProposal: request.recheckProposal,
+        });
+      };
+      const firstWorker = new ReleaseRunWorker({
+        service,
+        workerId: "worker:real-wait-first",
+        runObservation,
+      });
+
+      try {
+        const first = await firstWorker.tick();
+        assert.equal(first.status, "committed");
+        assert.equal(first.runId, trigger.runId);
+        assert.equal(first.state, "WAITING");
+        assert.equal(first.signal, "NORMAL_WAIT_REQUIRED");
+        const beforeRestart = service.getProjection(trigger.runId);
+        assert.equal(beforeRestart.observationCount, 1);
+        assert.equal(beforeRestart.waitCount, 1);
+        assert.equal(beforeRestart.decisionCount, 0);
+        assert.equal(beforeRestart.externalWriteAttempts, 0);
+        assert.ok(beforeRestart.nextWakeAt);
+        const preservedWakeAt = beforeRestart.nextWakeAt;
+        assert.deepEqual(
+          ledger.listEvents(trigger.runId).map((event) => event.eventType),
+          ["release-triggered", "observation-recorded", "wait-scheduled"],
+        );
+
+        await firstWorker.stop();
+        ledger.close();
+        ledger = new SQLiteReleaseRunLedger(databasePath);
+        service = createService();
+        const afterRestart = service.getProjection(trigger.runId);
+        assert.equal(afterRestart.runId, trigger.runId);
+        assert.equal(afterRestart.nextWakeAt, preservedWakeAt);
+        assert.equal(afterRestart.state, "WAITING");
+
+        const resumedWorker = new ReleaseRunWorker({
+          service,
+          workerId: "worker:real-wait-resumed",
+          runObservation,
+        });
+        assert.deepEqual(await resumedWorker.tick(), {
+          status: "idle",
+          runId: null,
+        });
+        const remainingMs = Math.max(
+          0,
+          Date.parse(preservedWakeAt!) - Date.now() + 30,
+        );
+        await new Promise((resolve) => setTimeout(resolve, remainingMs));
+
+        const woke = await resumedWorker.tick();
+        assert.equal(woke.status, "committed");
+        assert.equal(woke.runId, trigger.runId);
+        assert.equal(woke.state, "MONITORING");
+        assert.equal(woke.signal, "WAIT_DUE");
+        const decision = await resumedWorker.tick();
+        assert.equal(decision.status, "committed");
+        assert.equal(decision.runId, trigger.runId);
+        assert.equal(decision.state, "AWAITING_DECISION");
+        assert.equal(decision.signal, "OBSERVATION_BUDGET_EXHAUSTED");
+        assert.equal(observationCalls, 2);
+
+        const awaiting = service.getProjection(trigger.runId);
+        assert.equal(awaiting.runId, trigger.runId);
+        assert.equal(awaiting.observationCount, 2);
+        assert.equal(awaiting.waitCount, 1);
+        assert.ok(awaiting.measuredWaitMs >= 5_000);
+        assert.equal(awaiting.decisionCount, 1);
+        assert.equal(awaiting.humanPrompts, 1);
+        assert.equal(awaiting.externalWriteAttempts, 0);
+        assert.ok(awaiting.activeDecisionId);
+        assert.ok(awaiting.decisionEnvelope);
+        assert.equal(
+          awaiting.decisionEnvelope?.decisionId,
+          awaiting.activeDecisionId,
+        );
+        assert.equal(awaiting.decisionEnvelope?.runId, trigger.runId);
+        assert.equal(awaiting.decisionEnvelope?.candidateCommit, CANDIDATE);
+        assert.equal(
+          awaiting.decisionEnvelope?.expectedRunVersion,
+          awaiting.version,
+        );
+        assert.equal(awaiting.decisionEnvelope?.observationCount, 2);
+        assert.equal(awaiting.decisionEnvelope?.waitCount, 1);
+        assert.equal(
+          awaiting.decisionEnvelope?.evidence.source.evidenceId,
+          `github-commit:${CANDIDATE}`,
+        );
+        assert.equal(
+          awaiting.decisionEnvelope?.evidence.deployment.evidenceId,
+          `deployment-marker:${OLD_DEPLOYMENT}`,
+        );
+        assert.deepEqual(
+          awaiting.decisionEnvelope?.choices.map((choice) => choice.choice),
+          ["WAIT_AND_RECHECK", "ESCALATE_INCIDENT"],
+        );
+        assert.deepEqual(await resumedWorker.tick(), {
+          status: "idle",
+          runId: null,
+        });
+        assert.equal(
+          ledger
+            .listEvents(trigger.runId)
+            .filter((event) => event.eventType === "decision-requested").length,
+          1,
+        );
+
+        const expiresAt = awaiting.decisionEnvelope!.expiresAt;
+        await resumedWorker.stop();
+        ledger.close();
+        ledger = new SQLiteReleaseRunLedger(databasePath);
+        service = createService();
+        const expiryWorker = new ReleaseRunWorker({
+          service,
+          workerId: "worker:decision-expiry",
+          clock: () => new Date(expiresAt),
+          runObservation: async () => {
+            throw new Error("Decision expiry must not observe or write.");
+          },
+        });
+        const expired = await expiryWorker.tick();
+        assert.equal(expired.status, "committed");
+        assert.equal(expired.runId, trigger.runId);
+        assert.equal(expired.state, "STOPPED");
+        assert.equal(expired.signal, "DECISION_EXPIRED");
+        const stopped = service.getProjection(trigger.runId);
+        assert.equal(stopped.runId, trigger.runId);
+        assert.equal(stopped.decisionCount, 1);
+        assert.equal(stopped.externalWriteAttempts, 0);
+        assert.equal(stopped.nextWakeAt, null);
+        assert.equal(stopped.activeDecisionId, null);
+        assert.deepEqual(stopped.stateHistory, [
+          "MONITORING",
+          "WAITING",
+          "MONITORING",
+          "AWAITING_DECISION",
+          "STOPPED",
+        ]);
+        testContext.diagnostic(
+          `item-6 evidence ${JSON.stringify({
+            runId: trigger.runId,
+            restartRunId: stopped.runId,
+            nextWakeAt: preservedWakeAt,
+            measuredWaitMs: awaiting.measuredWaitMs,
+            observationCount: awaiting.observationCount,
+            decisionCount: stopped.decisionCount,
+            externalWriteAttempts: stopped.externalWriteAttempts,
+          })}`,
+        );
+        await expiryWorker.stop();
+      } finally {
+        ledger.close();
+        await rm(directory, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it("holds a restarted run immediately before its due time and wakes it at the exact boundary", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "quietops-wait-boundary-"));
+    const databasePath = join(directory, "quietops.sqlite");
+    let ledger = new SQLiteReleaseRunLedger(databasePath);
+    const service = new ReleaseRunService(ledger);
+    const trigger = service.createFromTrigger({
+      candidateCommit: CANDIDATE,
+      deliveryId: "abcdefab-1111-2222-3333-abcdefabcdef",
+      policyProfile: resolvePolicyProfile("demo-v1"),
+      occurredAt: OCCURRED_AT,
+    });
+    let now = Date.parse(OBSERVED_AT);
+    const firstWorker = new ReleaseRunWorker({
+      service,
+      workerId: "worker:boundary-first",
+      clock: () => new Date(now),
+      runObservation: oldDeploymentObservation,
+    });
+
+    try {
+      const first = await firstWorker.tick();
+      assert.equal(first.status, "committed");
+      assert.equal(first.state, "WAITING");
+      const before = service.getProjection(trigger.runId);
+      const nextWakeAt = before.nextWakeAt!;
+      assert.equal(nextWakeAt, "2026-08-24T05:00:06.000Z");
+      await firstWorker.stop();
+      ledger.close();
+
+      ledger = new SQLiteReleaseRunLedger(databasePath);
+      const reopened = new ReleaseRunService(ledger);
+      now = Date.parse(nextWakeAt) - 1;
+      const resumedWorker = new ReleaseRunWorker({
+        service: reopened,
+        workerId: "worker:boundary-resumed",
+        clock: () => new Date(now),
+        runObservation: oldDeploymentObservation,
+      });
+      assert.deepEqual(await resumedWorker.tick(), {
+        status: "idle",
+        runId: null,
+      });
+      assert.equal(
+        reopened.getProjection(trigger.runId).nextWakeAt,
+        nextWakeAt,
+      );
+      now += 1;
+      const woke = await resumedWorker.tick();
+      assert.equal(woke.status, "committed");
+      assert.equal(woke.runId, trigger.runId);
+      assert.equal(woke.signal, "WAIT_DUE");
+      assert.equal(reopened.getProjection(trigger.runId).state, "MONITORING");
+      await resumedWorker.stop();
+    } finally {
+      ledger.close();
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("stops unhealthy and unavailable observations without a decision or write", async () => {
+    const cases = [
+      {
+        name: "unhealthy-homepage",
+        error: new HomepageSmokeError(
+          HOMEPAGE_SMOKE_ERROR_CODES.unhealthy,
+          "product marker missing",
+        ),
+        signal: "HOMEPAGE_SMOKE_UNHEALTHY" as const,
+      },
+      {
+        name: "missing-deployment",
+        error: new DeploymentEvidenceError(
+          DEPLOYMENT_EVIDENCE_ERROR_CODES.notFound,
+          "deployment marker missing",
+        ),
+        signal: "EVIDENCE_UNAVAILABLE" as const,
+      },
+    ];
+
+    for (const [index, testCase] of cases.entries()) {
+      const ledger = new SQLiteReleaseRunLedger();
+      const service = new ReleaseRunService(ledger);
+      const trigger = service.createFromTrigger({
+        candidateCommit: CANDIDATE,
+        deliveryId: `failure-case-${index}`,
+        policyProfile: resolvePolicyProfile("demo-v1"),
+        occurredAt: OCCURRED_AT,
+      });
+      const worker = new ReleaseRunWorker({
+        service,
+        workerId: `worker:${testCase.name}`,
+        clock: () => new Date(OBSERVED_AT),
+        runObservation: async () => {
+          throw testCase.error;
+        },
+      });
+      const result = await worker.tick();
+      assert.equal(result.status, "committed");
+      assert.equal(result.runId, trigger.runId);
+      assert.equal(result.state, "STOPPED");
+      assert.equal(result.signal, testCase.signal);
+      const projection = service.getProjection(trigger.runId);
+      assert.equal(projection.observationCount, 0);
+      assert.equal(projection.decisionCount, 0);
+      assert.equal(projection.externalWriteAttempts, 0);
+      assert.deepEqual(
+        ledger.listEvents(trigger.runId).map((event) => event.eventType),
+        ["release-triggered", "run-stopped"],
+      );
+      await worker.stop();
+      ledger.close();
     }
   });
 
@@ -359,7 +690,40 @@ class ToolSequenceModel extends Model<BaseModelConfig> {
   }
 }
 
-function githubBundle(): GitHubEvidenceBundle {
+async function oldDeploymentObservation(
+  request: Readonly<ReleaseRunObservationRequest>,
+): Promise<Readonly<ReleaseStewardObservationResult>> {
+  const toolNames =
+    request.phase === "FIRST_OBSERVATION"
+      ? [
+          RELEASE_STEWARD_TOOL_NAMES.source,
+          RELEASE_STEWARD_TOOL_NAMES.ci,
+          RELEASE_STEWARD_TOOL_NAMES.deployment,
+          RELEASE_STEWARD_TOOL_NAMES.smoke,
+          RELEASE_STEWARD_TOOL_NAMES.recheck,
+        ]
+      : [
+          RELEASE_STEWARD_TOOL_NAMES.deployment,
+          RELEASE_STEWARD_TOOL_NAMES.smoke,
+          RELEASE_STEWARD_TOOL_NAMES.recheck,
+        ];
+  return await runReleaseStewardObservation({
+    phase: request.phase,
+    candidateCommit: request.candidateCommit,
+    ...(request.immutableEvidenceIds
+      ? { immutableEvidenceIds: request.immutableEvidenceIds }
+      : {}),
+    modelMode: "injected-test",
+    model: new ToolSequenceModel(toolNames),
+    githubCollector: async () => githubBundle(OBSERVED_AT),
+    deploymentCollector: async () =>
+      deploymentBundle(OLD_DEPLOYMENT, OBSERVED_AT),
+    homepageCollector: async () => homepageBundle(OBSERVED_AT),
+    recheckProposal: request.recheckProposal,
+  });
+}
+
+function githubBundle(fetchedAt = OBSERVED_AT): GitHubEvidenceBundle {
   return Object.freeze({
     target: Object.freeze({
       repository: "YongHwan2161/quietops",
@@ -372,7 +736,7 @@ function githubBundle(): GitHubEvidenceBundle {
       status: "Verified",
       value: CANDIDATE,
       sourceUrl: `https://github.com/YongHwan2161/quietops/commit/${CANDIDATE}`,
-      fetchedAt: OBSERVED_AT,
+      fetchedAt,
     }),
     ci: Object.freeze({
       evidenceId: "github-actions-run:32689002351",
@@ -381,17 +745,20 @@ function githubBundle(): GitHubEvidenceBundle {
       value: "success",
       sourceUrl:
         "https://github.com/YongHwan2161/quietops/actions/runs/32689002351",
-      fetchedAt: OBSERVED_AT,
+      fetchedAt,
       workflowName: "Verify",
       runId: 32689002351,
       headSha: CANDIDATE,
-      completedAt: OBSERVED_AT,
+      completedAt: fetchedAt,
     }),
     externalMutations: 0,
   });
 }
 
-function deploymentBundle(): DeploymentEvidenceBundle {
+function deploymentBundle(
+  deployedCommit = CANDIDATE,
+  fetchedAt = OBSERVED_AT,
+): DeploymentEvidenceBundle {
   const markerUrl =
     "https://quietops-production.up.railway.app/.well-known/quietops-release.json";
   return Object.freeze({
@@ -400,18 +767,18 @@ function deploymentBundle(): DeploymentEvidenceBundle {
       markerUrl,
     }),
     deployment: Object.freeze({
-      evidenceId: `deployment-marker:${CANDIDATE}`,
+      evidenceId: `deployment-marker:${deployedCommit}`,
       kind: "Deployed revision",
       status: "Verified",
-      value: CANDIDATE,
+      value: deployedCommit,
       sourceUrl: markerUrl,
-      fetchedAt: OBSERVED_AT,
+      fetchedAt,
     }),
     externalMutations: 0,
   });
 }
 
-function homepageBundle(): HomepageSmokeBundle {
+function homepageBundle(fetchedAt = OBSERVED_AT): HomepageSmokeBundle {
   const homepageUrl = "https://quietops-production.up.railway.app/";
   return Object.freeze({
     target: Object.freeze({
@@ -419,12 +786,12 @@ function homepageBundle(): HomepageSmokeBundle {
       homepageUrl,
     }),
     smoke: Object.freeze({
-      evidenceId: `homepage-smoke:quietops-production.up.railway.app:${OBSERVED_AT}`,
+      evidenceId: `homepage-smoke:quietops-production.up.railway.app:${fetchedAt}`,
       kind: "Homepage smoke",
       status: "Verified",
       value: "healthy",
       sourceUrl: homepageUrl,
-      fetchedAt: OBSERVED_AT,
+      fetchedAt,
       httpStatus: 200,
       contentType: "text/html; charset=utf-8",
       bodyBytes: 256,

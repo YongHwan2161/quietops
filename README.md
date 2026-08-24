@@ -10,9 +10,10 @@ an incident. It then resumes the same run and proves the bounded result.
 [quietops-production.up.railway.app](https://quietops-production.up.railway.app)
 
 > Current boundary: the public site demonstrates the existing read-only verifier,
-> not the redesigned product. Background/event-triggered execution, persisted
-> wait/resume, browser smoke evidence, and the post-decision incident action are
-> planned requirements and must not be presented as implemented.
+> not the redesigned product. The local, default-off successor now has signed
+> event intake, a durable worker, persisted wait/restart recovery, browser smoke
+> evidence, and one expiring decision envelope. Authenticated decision resume,
+> the bounded incident action, and live deployment remain unimplemented gates.
 
 ## The core idea
 
@@ -75,10 +76,10 @@ The following is the approved P0 target, not the current public implementation:
 
 ## Current status
 
-- Active product direction: the Autonomous Release Steward PRD, technical specification, and 12-item build checklist are documentation-ready; implementation remains on HOLD pending checklist review and an explicit instruction to begin Item 1
-- Current implementation baseline: Stage 4B-3 interactive live release verifier; background execution, persisted wait/resume, and a post-decision bounded action are not yet implemented
+- Active product direction: Autonomous Release Steward checklist Items 1–6 are implemented locally; Item 7 authenticated decision submission and same-run resume is the next HOLD
+- Current implementation baseline: the default-off successor accepts a signed fixed-target push, runs bounded Strands observations in a durable worker, quietly completes a converged release, persists policy waits before sleeping, recovers the same run after restart, and requests one expiring decision only after the healthy delayed path exhausts its normal observation budget
 - Implementation: candidate identity, bounded Ready/mismatch Strands paths, a three-tool live source/CI/deployment path, deterministic policy, an append-only SQLite ledger, per-release idempotent replay, human-decision lineage for preserved mismatch cases, inbox/detail projections, and provider receipt links
-- Browser and API: the guarded Fastify server defaults to loopback and exposes inbox, detail, live-verification, decision, liveness, and optionally exact-commit release-marker endpoints. A configured release identity enables the fixed-target `POST /api/live-verifications`; public mode still rejects human decision writes and exposes no arbitrary repository or URL input.
+- Browser and API: the guarded Fastify server defaults to loopback and exposes the legacy inbox/detail/live-verification routes plus a default-off, signed fixed-target GitHub webhook. The successor worker is injectable for local/test construction; no authenticated release-decision write route or arbitrary repository/URL input is enabled.
 - Live integration status: the complete GitHub source → required CI → Railway marker → policy → SQLite path passes both injected tests and one actual provider-backed local browser journey. It returned `Ready` for predecessor commit `1edbded139c0e7e8ec6e90e9d8f8ee57353ea41a`, CI run `32562992913`, and the matching Railway marker, then replayed the same evaluation on the second request. The new UI and endpoint remain a local successor claim until deployed and invoked on the public domain.
 - Deployment-marker validation: the construction-bound collector performed one bounded unauthenticated GET against the live Railway marker, accepted repository `YongHwan2161/quietops` and full commit `1edbded139c0e7e8ec6e90e9d8f8ee57353ea41a`, and returned `Verified` with `externalMutations: 0`.
 - Hosting target: Railway is live in guarded `public-read-only` mode with one persistent volume, one replica in US West, a `/health` check, and the generated HTTPS domain `quietops-production.up.railway.app`.

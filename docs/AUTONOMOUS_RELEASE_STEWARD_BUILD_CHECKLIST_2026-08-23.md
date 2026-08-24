@@ -2,7 +2,7 @@
 
 ## Status
 
-`ITEM_5_COMPLETE_ITEM_6_HOLD`
+`ITEM_6_COMPLETE_ITEM_7_HOLD`
 
 This checklist is the implementation contract for the
 [technical specification](AUTONOMOUS_RELEASE_STEWARD_TECHNICAL_SPEC_2026-08-23.md).
@@ -149,7 +149,7 @@ documentation PR is reviewed and the user explicitly advances to the build.
       HOLD/rollback: Stop if run identity changes, the browser is required, any
       provider write is reachable, or enabling defaults change. Revert Item 5 only.
 
-- [ ] **6. Add real waiting, restart recovery, and the decision envelope**
+- [x] **6. Add real waiting, restart recovery, and the decision envelope**
       Spec ref: `Autonomous Release Steward Technical Spec > State machine` and
       `> Decision envelope and API`
       What to build: Persist `WAITING` before sleep, reclaim due runs after restart,

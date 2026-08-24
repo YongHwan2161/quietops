@@ -1,4 +1,16 @@
-import type { ReleaseStewardObservationResult } from "@quietops/agent";
+import {
+  ReleaseStewardPostconditionError,
+  type ReleaseStewardObservationPhase,
+  type ReleaseStewardObservationResult,
+} from "@quietops/agent";
+import {
+  DEPLOYMENT_EVIDENCE_ERROR_CODES,
+  DeploymentEvidenceError,
+  HOMEPAGE_SMOKE_ERROR_CODES,
+  HomepageSmokeError,
+  GitHubEvidenceError,
+} from "@quietops/adapters";
+import type { ReleaseRunSignal } from "@quietops/contracts";
 
 import {
   ReleaseRunService,
@@ -13,7 +25,14 @@ const DEFAULT_SHUTDOWN_TIMEOUT_MS = 10_000;
 export interface ReleaseRunObservationRequest {
   readonly runId: string;
   readonly candidateCommit: string;
-  readonly phase: "FIRST_OBSERVATION";
+  readonly phase: Extract<
+    ReleaseStewardObservationPhase,
+    "FIRST_OBSERVATION" | "LATER_OBSERVATION"
+  >;
+  readonly immutableEvidenceIds?: {
+    readonly source: string;
+    readonly ci: string;
+  };
   readonly recheckProposal: {
     readonly waitUntil: string;
     readonly durationMs: number;
@@ -43,7 +62,7 @@ export type ReleaseRunWorkerTickResult =
       runId: string;
       state: ReleaseRunProjection["state"];
       version: number;
-      signal: ReleaseStewardObservationResult["postcondition"]["signal"];
+      signal: ReleaseRunSignal;
       toolCallCount: number;
       humanPrompts: number;
       externalWriteAttempts: number;
@@ -182,8 +201,39 @@ export class ReleaseRunWorker {
     );
     if (!claim) return Object.freeze({ status: "idle", runId: null });
     this.#claimedRunId = claim.run.runId;
+    if (claim.head.state === "WAITING") {
+      const projection = this.#service.wakeDueRun(claim, claimTime);
+      return committedTick(projection, "WAIT_DUE");
+    }
+    if (claim.head.state === "AWAITING_DECISION") {
+      const projection = this.#service.expireDecision(claim, claimTime);
+      return committedTick(projection, "DECISION_EXPIRED");
+    }
+    if (claim.head.state !== "MONITORING") {
+      throw new Error(
+        `Release worker cannot process ${claim.head.state} before Item 7.`,
+      );
+    }
     const request = observationRequest(claim, claimTime);
-    const result = await this.#runObservation(request);
+    let result: Readonly<ReleaseStewardObservationResult>;
+    try {
+      result = await this.#runObservation(request);
+    } catch (error) {
+      const stopSignal = classifyObservationFailure(error);
+      if (!stopSignal) throw error;
+      if (this.#stopping) {
+        return Object.freeze({
+          status: "stopped-before-commit",
+          runId: claim.run.runId,
+        });
+      }
+      const projection = this.#service.stopClaim(
+        claim,
+        stopSignal,
+        this.#now(),
+      );
+      return committedTick(projection, stopSignal);
+    }
     if (this.#stopping) {
       return Object.freeze({
         status: "stopped-before-commit",
@@ -195,16 +245,11 @@ export class ReleaseRunWorker {
       result,
       occurredAt: this.#now(),
     });
-    return Object.freeze({
-      status: "committed",
-      runId: projection.runId,
-      state: projection.state,
-      version: projection.version,
-      signal: result.postcondition.signal,
-      toolCallCount: projection.toolCallCount,
-      humanPrompts: projection.humanPrompts,
-      externalWriteAttempts: projection.externalWriteAttempts,
-    });
+    const signal =
+      projection.state === "AWAITING_DECISION"
+        ? "OBSERVATION_BUDGET_EXHAUSTED"
+        : result.postcondition.signal;
+    return committedTick(projection, signal);
   }
 
   #now(): string {
@@ -220,21 +265,80 @@ function observationRequest(
   claim: Readonly<ClaimedReleaseRun>,
   observedAt: string,
 ): Readonly<ReleaseRunObservationRequest> {
-  if (claim.head.state !== "MONITORING" || claim.observationCount !== 0) {
+  if (claim.head.state !== "MONITORING") {
+    throw new Error("Observation request requires one MONITORING run.");
+  }
+  if (claim.decisionCount !== 0) {
     throw new Error(
-      "Item 5 worker can claim only a first-observation MONITORING run.",
+      "Post-decision observation is unavailable before Item 7 resume handling.",
     );
+  }
+  const phase =
+    claim.observationCount === 0
+      ? ("FIRST_OBSERVATION" as const)
+      : ("LATER_OBSERVATION" as const);
+  if (phase === "LATER_OBSERVATION" && !claim.immutableEvidence) {
+    throw new Error("Later observation cannot lose immutable evidence IDs.");
   }
   const durationMs = claim.run.policyProfile.delayBetweenObservationsMs;
   return Object.freeze({
     runId: claim.run.runId,
     candidateCommit: claim.run.candidateCommit,
-    phase: "FIRST_OBSERVATION",
+    phase,
+    ...(claim.immutableEvidence
+      ? {
+          immutableEvidenceIds: Object.freeze({
+            source: claim.immutableEvidence.source.evidenceId,
+            ci: claim.immutableEvidence.ci.evidenceId,
+          }),
+        }
+      : {}),
     recheckProposal: Object.freeze({
       waitUntil: new Date(Date.parse(observedAt) + durationMs).toISOString(),
       durationMs,
       policyProfile: `${claim.run.policyProfile.name}@${claim.run.policyProfile.version}`,
     }),
+  });
+}
+
+function classifyObservationFailure(
+  error: unknown,
+):
+  | "EVIDENCE_INVALID"
+  | "EVIDENCE_UNAVAILABLE"
+  | "DEPLOYMENT_UNHEALTHY"
+  | "HOMEPAGE_SMOKE_UNHEALTHY"
+  | null {
+  if (error instanceof HomepageSmokeError) {
+    return error.code === HOMEPAGE_SMOKE_ERROR_CODES.unhealthy
+      ? "HOMEPAGE_SMOKE_UNHEALTHY"
+      : "EVIDENCE_UNAVAILABLE";
+  }
+  if (error instanceof DeploymentEvidenceError) {
+    return error.code === DEPLOYMENT_EVIDENCE_ERROR_CODES.responseInvalid
+      ? "DEPLOYMENT_UNHEALTHY"
+      : "EVIDENCE_UNAVAILABLE";
+  }
+  if (error instanceof GitHubEvidenceError) return "EVIDENCE_UNAVAILABLE";
+  if (error instanceof ReleaseStewardPostconditionError) {
+    return "EVIDENCE_INVALID";
+  }
+  return null;
+}
+
+function committedTick(
+  projection: Readonly<ReleaseRunProjection>,
+  signal: ReleaseRunSignal,
+): Extract<ReleaseRunWorkerTickResult, { status: "committed" }> {
+  return Object.freeze({
+    status: "committed",
+    runId: projection.runId,
+    state: projection.state,
+    version: projection.version,
+    signal,
+    toolCallCount: projection.toolCallCount,
+    humanPrompts: projection.humanPrompts,
+    externalWriteAttempts: projection.externalWriteAttempts,
   });
 }
 

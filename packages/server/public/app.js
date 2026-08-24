@@ -1,528 +1,518 @@
 const state = {
-  items: [],
+  runs: [],
   selectedId: null,
   selected: null,
+  capabilities: null,
+  detailCapabilities: null,
   busy: false,
-  decisionMode: "public-read-only",
-  liveVerificationEnabled: false,
+  pollTimer: null,
+  listFingerprint: null,
+  detailFingerprint: null,
 };
 
-const inbox = document.querySelector("#inbox");
-const detail = document.querySelector("#detail");
+const runList = document.querySelector("#run-list");
+const runDetail = document.querySelector("#run-detail");
 const refreshButton = document.querySelector("#refresh-button");
-const liveCount = document.querySelector("#live-count");
-const readyCount = document.querySelector("#ready-count");
-const toast = document.querySelector("#toast");
 const runtimeMode = document.querySelector("#runtime-mode");
-const releaseProof = document.querySelector(".release-proof");
+const toast = document.querySelector("#toast");
+const observationCount = document.querySelector("#observation-count");
+const waitCount = document.querySelector("#wait-count");
+const promptCount = document.querySelector("#prompt-count");
+const writeCount = document.querySelector("#write-count");
 const releaseProofStatus = document.querySelector("#release-proof-status");
 const releaseRepository = document.querySelector("#release-repository");
 const releaseCommit = document.querySelector("#release-commit");
-const verifyButton = document.querySelector("#verify-button");
-const verifyStatus = document.querySelector("#verify-status");
 
-refreshButton.addEventListener("click", () => void loadInbox(state.selectedId));
-verifyButton.addEventListener("click", () => void runLiveVerification());
+refreshButton.addEventListener("click", () => void loadRuns(state.selectedId));
+window.addEventListener("beforeunload", clearPoll);
 
 void loadReleaseMarker();
-void loadInbox();
+void loadRuns();
+
+async function loadRuns(preferredId, options = {}) {
+  clearPoll();
+  if (!options.silent) setBusy(true);
+  try {
+    const payload = await requestJson("/api/release-runs");
+    const listFingerprint = JSON.stringify(payload.items);
+    const listChanged = listFingerprint !== state.listFingerprint;
+    state.runs = payload.items;
+    state.capabilities = payload.capabilities;
+    state.listFingerprint = listFingerprint;
+    const preferredExists = state.runs.some((run) => run.runId === preferredId);
+    state.selectedId = preferredExists
+      ? preferredId
+      : (state.runs.find((run) => run.attentionRequired)?.runId ??
+        state.runs[0]?.runId ??
+        null);
+    if (listChanged) {
+      renderRuntimeMode();
+      renderRunList();
+    }
+    if (state.selectedId) {
+      await loadDetail(state.selectedId);
+    } else {
+      renderEmpty(
+        "No release runs yet",
+        "A signed release event will appear here.",
+      );
+    }
+  } catch (error) {
+    renderError(error);
+  } finally {
+    if (!options.silent) setBusy(false);
+    schedulePoll();
+  }
+}
+
+async function loadDetail(runId) {
+  const payload = await requestJson(
+    `/api/release-runs/${encodeURIComponent(runId)}`,
+  );
+  if (state.selectedId !== runId) return;
+  const detailFingerprint = JSON.stringify(payload);
+  if (detailFingerprint === state.detailFingerprint) return;
+  state.selected = payload.run;
+  state.detailCapabilities = payload.capabilities;
+  state.detailFingerprint = detailFingerprint;
+  renderMetrics();
+  renderRunList();
+  renderDetail();
+}
+
+async function selectRun(runId) {
+  if (state.busy || runId === state.selectedId) return;
+  clearPoll();
+  state.selectedId = runId;
+  state.selected = null;
+  state.detailFingerprint = null;
+  renderRunList();
+  setBusy(true);
+  try {
+    await loadDetail(runId);
+  } catch (error) {
+    renderError(error);
+  } finally {
+    setBusy(false);
+    schedulePoll();
+  }
+}
+
+function renderRuntimeMode() {
+  const liveCount = state.runs.filter(
+    (run) => run.evidenceMode === "live",
+  ).length;
+  runtimeMode.textContent =
+    liveCount > 0
+      ? `${liveCount} live run${liveCount === 1 ? "" : "s"} · polling active work`
+      : "Preserved walkthrough · shared state stays read-only";
+}
+
+function renderMetrics() {
+  const run = state.selected;
+  for (const [node, value] of [
+    [observationCount, run?.observationCount],
+    [waitCount, run?.waitCount],
+    [promptCount, run?.humanPromptCount],
+    [writeCount, run?.externalWriteAttemptCount],
+  ]) {
+    node.textContent = Number.isInteger(value) ? String(value) : "—";
+  }
+}
+
+function renderRunList() {
+  runList.replaceChildren();
+  addRunGroup(
+    "Needs your judgment",
+    state.runs.filter((run) => run.attentionRequired),
+    "No release currently needs human context.",
+  );
+  addRunGroup(
+    "Quietly handled · history",
+    state.runs.filter((run) => !run.attentionRequired),
+    "Completed and stopped runs will remain here.",
+  );
+}
+
+function addRunGroup(label, runs, emptyMessage) {
+  runList.append(element("p", "run-group-label", label));
+  if (runs.length === 0) {
+    runList.append(element("p", "run-group-empty", emptyMessage));
+    return;
+  }
+  for (const run of runs) {
+    const button = element("button", "run-item");
+    button.type = "button";
+    button.setAttribute("aria-current", String(run.runId === state.selectedId));
+    button.setAttribute(
+      "aria-label",
+      `${run.headline}. ${run.attentionRequired ? "Needs your judgment" : "No judgment needed"}.`,
+    );
+    button.addEventListener("click", () => void selectRun(run.runId));
+
+    const top = element("span", "run-item-top");
+    top.append(
+      element(
+        "span",
+        run.attentionRequired ? "state-pill attention" : "state-pill",
+        stateLabel(run.state),
+      ),
+      element(
+        "span",
+        "evidence-label",
+        run.evidenceMode === "preserved-demo" ? "Preserved demo" : "Live run",
+      ),
+    );
+    button.append(
+      top,
+      element("strong", "run-item-title", run.headline),
+      element(
+        "span",
+        "run-item-meta",
+        `${shortCommit(run.candidateCommit)} · ${run.observationCount} observations · ${run.humanPromptCount} prompts`,
+      ),
+    );
+    runList.append(button);
+  }
+}
+
+function renderDetail() {
+  const run = state.selected;
+  if (!run) return;
+  runDetail.replaceChildren();
+  runDetail.setAttribute("aria-busy", "false");
+
+  const header = element("header", "detail-header");
+  const heading = element("div");
+  heading.append(
+    element(
+      "p",
+      "eyebrow record-context",
+      run.evidenceMode === "preserved-demo" ? "PRESERVED DEMO RUN" : "LIVE RUN",
+    ),
+    element(
+      "span",
+      run.attentionRequired ? "state-pill attention" : "state-pill",
+      stateLabel(run.state),
+    ),
+    element("h2", "", run.headline),
+    element("p", "detail-subtitle", run.summary),
+  );
+  const commit = element(
+    "code",
+    "commit-chip",
+    shortCommit(run.candidateCommit),
+  );
+  commit.title = run.candidateCommit;
+  header.append(heading, commit);
+  runDetail.append(header, renderHandledWork(run));
+
+  if (run.decision) runDetail.append(renderDecision(run));
+  if (run.action) runDetail.append(renderAction(run.action));
+  runDetail.append(renderTimeline(run.timeline), renderReceipts(run.receipts));
+}
+
+function renderHandledWork(run) {
+  const section = element("section", "detail-section handled-work");
+  const heading = element("div", "section-heading");
+  heading.append(
+    element("h3", "", "What QuietOps handled"),
+    element("span", "", `${formatDuration(run.measuredWaitMs)} measured wait`),
+  );
+  const grid = element("div", "handled-grid");
+  for (const [value, label] of [
+    [run.observationCount, "evidence observations"],
+    [run.waitCount, "policy waits"],
+    [run.humanPromptCount, "human prompts"],
+    [run.externalWriteAttemptCount, "external write attempts"],
+  ]) {
+    const item = element("div", "handled-item");
+    item.append(
+      element("strong", "", String(value)),
+      element("span", "", label),
+    );
+    grid.append(item);
+  }
+  section.append(heading, grid);
+  return section;
+}
+
+function renderDecision(run) {
+  const section = element("section", "detail-section");
+  section.setAttribute("aria-labelledby", "decision-title");
+  const card = element("div", "decision-card");
+  if (run.decision.status !== "PENDING") {
+    card.classList.add("resolved");
+    const choice = run.decision.authorizedChoice;
+    const title = element(
+      "h3",
+      "",
+      choice ? `${choiceLabel(choice)} authorized` : "Decision window closed",
+    );
+    title.id = "decision-title";
+    card.append(
+      element(
+        "p",
+        "eyebrow",
+        choice ? "OWNER DECISION RECORDED" : "DECISION CLOSED",
+      ),
+      title,
+      element(
+        "p",
+        "decision-question",
+        choice
+          ? "QuietOps resumed this same release run with only the selected authority."
+          : "The decision expired without granting any action authority.",
+      ),
+    );
+    if (run.decision.authorizedAt) {
+      card.append(
+        element(
+          "span",
+          "decision-time",
+          `Recorded ${formatDate(run.decision.authorizedAt)}`,
+        ),
+      );
+    }
+    section.append(card);
+    return section;
+  }
+  const title = element("h3", "", "QuietOps needs context, not more retries");
+  title.id = "decision-title";
+  card.append(
+    element("p", "eyebrow", "THE HUMAN BOUNDARY"),
+    title,
+    element("p", "decision-question", run.decision.missingContext),
+  );
+
+  const choices = element("div", "choice-grid");
+  for (const choice of run.decision.choices) {
+    const item = element("article", "choice-card");
+    item.append(
+      element("strong", "", choiceLabel(choice.choice)),
+      element("p", "", choice.summary),
+    );
+    choices.append(item);
+  }
+  card.append(choices);
+
+  if (state.detailCapabilities?.canDecide === true) {
+    const form = element("form", "authority-form");
+    form.addEventListener("submit", (event) => event.preventDefault());
+    const label = element("label", "", "Release-owner token");
+    label.htmlFor = "operator-token";
+    const input = document.createElement("input");
+    input.id = "operator-token";
+    input.type = "password";
+    input.autocomplete = "off";
+    input.spellcheck = false;
+    input.placeholder = "Used in memory for one POST only";
+    const actions = element("div", "decision-actions");
+    for (const choice of run.decision.choices) {
+      const button = element(
+        "button",
+        choice.choice === "ESCALATE_INCIDENT"
+          ? "action-button secondary"
+          : "action-button",
+        choiceButtonLabel(choice.choice),
+      );
+      button.type = "button";
+      button.addEventListener(
+        "click",
+        () => void submitReleaseDecision(run, choice.choice, input),
+      );
+      actions.append(button);
+    }
+    form.append(label, input, actions);
+    card.append(form);
+  } else {
+    const boundary = element("div", "public-boundary");
+    boundary.append(
+      element("strong", "", "Read-only by design"),
+      element(
+        "span",
+        "",
+        run.evidenceMode === "preserved-demo"
+          ? "This preserved history demonstrates the checkpoint but can never accept a decision."
+          : "Public viewers can inspect the question and consequences; only an authenticated release owner can choose.",
+      ),
+    );
+    card.append(boundary);
+  }
+
+  section.append(card);
+  return section;
+}
+
+function renderAction(action) {
+  const section = element("section", "detail-section");
+  const card = element("div", "action-receipt");
+  card.append(
+    element("p", "eyebrow", "AUTHORIZED ACTION RESULT"),
+    element("strong", "", `${action.actionType} · ${action.status}`),
+    element(
+      "span",
+      "",
+      `${action.attemptCount} provider attempt${action.attemptCount === 1 ? "" : "s"}; no automatic retry.`,
+    ),
+  );
+  if (action.providerUrl) {
+    const link = element("a", "receipt-link", "Open provider receipt ↗");
+    link.href = action.providerUrl;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    card.append(link);
+  }
+  section.append(card);
+  return section;
+}
+
+function renderTimeline(timeline) {
+  const section = element("section", "detail-section");
+  const heading = element("div", "section-heading");
+  heading.append(
+    element("h3", "", "Same-run story"),
+    element("span", "", `${timeline.length} persisted events`),
+  );
+  const list = element("ol", "timeline");
+  for (const event of timeline) {
+    const item = element("li", "timeline-item");
+    const marker = element("span", "timeline-marker", String(event.sequence));
+    marker.setAttribute("aria-hidden", "true");
+    const copy = element("div");
+    copy.append(
+      element("strong", "", event.title),
+      element("p", "", event.detail),
+      element("time", "", formatDate(event.occurredAt)),
+    );
+    item.append(marker, copy);
+    list.append(item);
+  }
+  section.append(heading, list);
+  return section;
+}
+
+function renderReceipts(receipts) {
+  const section = document.createElement("details");
+  section.className = "technical-receipts";
+  const summary = document.createElement("summary");
+  summary.textContent = `Technical receipts · ${receipts.length}`;
+  const intro = element(
+    "p",
+    "receipt-intro",
+    "Provider-bound evidence is available for audit after the human-readable story.",
+  );
+  const grid = element("div", "receipt-grid");
+  for (const receipt of receipts) {
+    const item = element("article", "receipt-item");
+    item.append(
+      element("strong", "", humanizeTool(receipt.toolName)),
+      element("code", "", receipt.providerRecordId),
+      element(
+        "span",
+        "",
+        `${receipt.provider} · ${formatDate(receipt.fetchedAt)}`,
+      ),
+    );
+    if (receipt.sourceUrl) {
+      const link = element("a", "receipt-link", "Open source ↗");
+      link.href = receipt.sourceUrl;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      item.append(link);
+    }
+    grid.append(item);
+  }
+  section.append(summary, intro, grid);
+  return section;
+}
+
+async function submitReleaseDecision(run, choice, input) {
+  if (state.busy) return;
+  let authority = input.value.trim();
+  if (!authority) {
+    input.focus();
+    showToast("Enter release-owner authority for this one request.", true);
+    return;
+  }
+  input.value = "";
+  setBusy(true);
+  try {
+    const payload = await requestJson(
+      `/api/decisions/${encodeURIComponent(run.decision.decisionId)}`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${authority}`,
+          "Content-Type": "application/json",
+          "Idempotency-Key": `browser:${crypto.randomUUID()}`,
+        },
+        body: JSON.stringify({
+          choice,
+          expectedRunVersion: run.decision.expectedRunVersion,
+        }),
+      },
+    );
+    authority = "";
+    showToast(
+      payload.receipt.replayed
+        ? "The existing decision receipt was replayed."
+        : "Decision authorized. QuietOps will resume the same run.",
+    );
+    await loadRuns(run.runId, { silent: true });
+  } catch (error) {
+    authority = "";
+    showToast(errorMessage(error), true);
+    await loadRuns(run.runId, { silent: true });
+  } finally {
+    setBusy(false);
+  }
+}
+
+function schedulePoll() {
+  clearPoll();
+  if (!state.selected?.active) return;
+  const interval = state.capabilities?.pollIntervalMs ?? 2_000;
+  state.pollTimer = window.setTimeout(
+    () => void loadRuns(state.selectedId, { silent: true }),
+    interval,
+  );
+}
+
+function clearPoll() {
+  if (state.pollTimer !== null) {
+    window.clearTimeout(state.pollTimer);
+    state.pollTimer = null;
+  }
+}
 
 async function loadReleaseMarker() {
+  if (location.hostname === "127.0.0.1" || location.hostname === "localhost") {
+    releaseRepository.textContent = "Local demo";
+    releaseCommit.textContent = "Not configured";
+    releaseProofStatus.textContent = "No public release marker in this runtime";
+    return;
+  }
   try {
     const marker = await requestJson("/.well-known/quietops-release.json");
     releaseRepository.textContent = marker.repository;
     releaseRepository.title = marker.repository;
     releaseCommit.textContent = shortCommit(marker.commit);
     releaseCommit.title = marker.commit;
-    releaseProofStatus.textContent =
-      "Reported by this deployment’s strict no-store marker.";
-    releaseProof.classList.add("verified");
+    releaseProofStatus.textContent = "Strict no-store marker verified";
   } catch {
     releaseRepository.textContent = "Local demo";
     releaseCommit.textContent = "Not configured";
-    releaseProofStatus.textContent =
-      "Public deployments expose an exact repository and full commit here.";
-    releaseProof.classList.add("unavailable");
-  }
-}
-
-async function loadInbox(preferredId) {
-  setBusy(true);
-  try {
-    const payload = await requestJson("/api/inbox");
-    state.items = payload.items;
-    state.decisionMode =
-      payload.capabilities?.decisionMode === "local-interactive"
-        ? "local-interactive"
-        : "public-read-only";
-    state.liveVerificationEnabled =
-      payload.capabilities?.liveVerification?.enabled === true;
-    verifyButton.disabled = !state.liveVerificationEnabled;
-    if (!state.liveVerificationEnabled) {
-      verifyStatus.textContent =
-        "Live verification becomes available when a release identity is configured.";
-    }
-    renderRuntimeMode();
-    const preferredExists = state.items.some(
-      (item) => item.evaluationId === preferredId,
-    );
-    state.selectedId = preferredExists
-      ? preferredId
-      : (state.items[0]?.evaluationId ?? null);
-    renderSummary();
-    renderInbox();
-    if (state.selectedId) {
-      await loadDetail(state.selectedId);
-    } else {
-      renderEmpty(
-        "No evaluations yet",
-        "Start a demo evaluation to populate the inbox.",
-      );
-    }
-  } catch (error) {
-    renderError(error);
-  } finally {
-    setBusy(false);
-  }
-}
-
-async function loadDetail(evaluationId) {
-  state.selectedId = evaluationId;
-  renderInbox();
-  const payload = await requestJson(
-    `/api/evaluations/${encodeURIComponent(evaluationId)}`,
-  );
-  state.selected = payload.evaluation;
-  renderDetail();
-}
-
-function renderSummary() {
-  const liveItems = state.items.filter(
-    (item) => item.scenario === "live-release-verification",
-  );
-  liveCount.textContent = String(liveItems.length);
-  readyCount.textContent = String(
-    liveItems.filter((item) => item.outcome === "Ready").length,
-  );
-}
-
-function renderRuntimeMode() {
-  runtimeMode.textContent =
-    state.decisionMode === "local-interactive"
-      ? "Local evidence mode · interactive"
-      : "Live release verifier · read-only";
-}
-
-function renderInbox() {
-  inbox.replaceChildren();
-  const live = state.items.filter(
-    (item) => item.scenario === "live-release-verification",
-  );
-  const preserved = state.items.filter(
-    (item) => item.scenario !== "live-release-verification",
-  );
-
-  addInboxSection("Live verification receipts", live);
-  addInboxSection("Preserved examples", preserved);
-}
-
-function addInboxSection(label, items) {
-  const heading = element("p", "inbox-section-label", label);
-  inbox.append(heading);
-
-  if (items.length === 0) {
-    inbox.append(element("p", "inbox-section-label", "Nothing waiting"));
-    return;
-  }
-
-  for (const item of items) {
-    const button = element("button", "inbox-item");
-    button.type = "button";
-    button.setAttribute(
-      "aria-current",
-      String(item.evaluationId === state.selectedId),
-    );
-    button.addEventListener(
-      "click",
-      () => void selectEvaluation(item.evaluationId),
-    );
-
-    const dot = element(
-      "span",
-      item.attentionRequired ? "outcome-dot attention" : "outcome-dot",
-    );
-    dot.setAttribute("aria-hidden", "true");
-
-    const copy = element("span", "item-copy");
-    copy.append(
-      element("span", "item-title", item.decision ?? item.outcome),
-      element(
-        "span",
-        "item-meta",
-        `${item.branch} · ${shortCommit(item.commit)}`,
-      ),
-    );
-
-    button.append(
-      dot,
-      copy,
-      element("time", "item-time", formatTime(item.createdAt)),
-    );
-    inbox.append(button);
-  }
-}
-
-async function selectEvaluation(evaluationId) {
-  if (state.busy || evaluationId === state.selectedId) return;
-  setBusy(true);
-  try {
-    await loadDetail(evaluationId);
-  } catch (error) {
-    showToast(errorMessage(error), true);
-  } finally {
-    setBusy(false);
-  }
-}
-
-function renderDetail() {
-  const evaluation = state.selected;
-  if (!evaluation) return;
-
-  detail.replaceChildren();
-  const header = element("header", "detail-header");
-  const headingCopy = element("div");
-  const displayOutcome = evaluation.decision?.decision ?? evaluation.outcome;
-  const detailTitle = evaluation.decision
-    ? "Human decision preserved"
-    : evaluation.outcome === "Ready"
-      ? "Release identity verified"
-      : evaluation.outcome === "Could not complete"
-        ? "Evidence chain incomplete"
-        : "Deployment identity drift";
-  if (evaluation.scenario === "live-release-verification") {
-    headingCopy.append(
-      element("p", "eyebrow record-context", "LIVE VERIFICATION"),
-    );
-  } else if (state.decisionMode === "public-read-only") {
-    headingCopy.append(
-      element("p", "eyebrow record-context", "PRESERVED DEMO CASE"),
-    );
-  }
-  headingCopy.append(
-    element(
-      "span",
-      evaluation.attentionRequired
-        ? "outcome-badge attention"
-        : "outcome-badge",
-      displayOutcome,
-    ),
-    element("h2", "", detailTitle),
-    element("p", "detail-subtitle", evaluation.reason),
-  );
-  header.append(
-    headingCopy,
-    element("code", "commit-chip", shortCommit(evaluation.candidate.commit)),
-  );
-  detail.append(header);
-
-  if (evaluation.parentEvaluationId) {
-    detail.append(renderParentLineage(evaluation.parentEvaluationId));
-  }
-
-  detail.append(renderEvidence(evaluation));
-
-  if (evaluation.attentionRequired) {
-    detail.append(renderDecisionCard(evaluation));
-  } else if (evaluation.decision) {
-    detail.append(renderDecisionReceipt(evaluation));
-  }
-
-  detail.append(renderTelemetry(evaluation));
-}
-
-function renderParentLineage(parentEvaluationId) {
-  const section = element("section", "section lineage-banner");
-  const copy = element("div");
-  copy.append(
-    element("p", "eyebrow", "RE-CHECK LINEAGE"),
-    element("strong", "", "This evaluation preserves its parent decision."),
-  );
-  const link = element(
-    "button",
-    "lineage-link lineage-button",
-    "View parent record",
-  );
-  link.type = "button";
-  link.addEventListener(
-    "click",
-    () => void selectEvaluation(parentEvaluationId),
-  );
-  section.append(copy, link);
-  return section;
-}
-
-function renderEvidence(evaluation) {
-  const section = element("section", "section");
-  const heading = element("div", "section-heading");
-  heading.append(
-    element("h3", "", "Expected vs observed"),
-    element("span", "", `${evaluation.evidence.length} persisted records`),
-  );
-  section.append(heading);
-
-  const list = element("div", "evidence-list");
-  for (const observation of evaluation.evidence) {
-    const expected = expectedValue(evaluation, observation.kind);
-    const matches = expected === observation.value;
-    const row = element("article", "evidence-row");
-    row.append(
-      element("strong", "evidence-kind", observation.kind),
-      valueBlock("Expected", expected),
-      valueBlock("Observed", observation.value),
-      element(
-        "span",
-        matches ? "evidence-state" : "evidence-state mismatch",
-        matches ? "✓" : "!",
-      ),
-    );
-    list.append(row);
-  }
-  section.append(list);
-  return section;
-}
-
-function renderDecisionCard(evaluation) {
-  const section = element("section", "section");
-  const card = element("div", "decision-card");
-
-  if (state.decisionMode === "public-read-only") {
-    card.append(
-      element("p", "eyebrow", "PUBLIC DEMO · READ ONLY"),
-      element("h3", "", "A human decision is required"),
-      element(
-        "p",
-        "",
-        "QuietOps blocked Ready because this preserved example contains deployment drift. The public view demonstrates the checkpoint without changing the sample record.",
-      ),
-      element(
-        "div",
-        "demo-boundary",
-        "In a private workflow, the release owner can reject it or request a fresh, lineage-linked evaluation.",
-      ),
-    );
-    section.append(card);
-    return section;
-  }
-
-  card.append(
-    element("p", "eyebrow", "HUMAN CHECKPOINT"),
-    element("h3", "", "The safe path needs your call"),
-    element(
-      "p",
-      "",
-      "QuietOps stopped at evidence drift. Reject this candidate or ask the agent to collect a fresh, linked evaluation.",
-    ),
-  );
-
-  const note = element("textarea");
-  note.id = "decision-note";
-  note.maxLength = 500;
-  note.placeholder = "Optional decision note";
-  note.setAttribute("aria-label", "Decision note");
-  card.append(note);
-
-  const actions = element("div", "decision-actions");
-  const recheck = actionButton(
-    "Re-check with fresh evidence",
-    "Re-check requested",
-    false,
-  );
-  const reject = actionButton("Reject candidate", "Reject", true);
-  actions.append(recheck, reject);
-  card.append(actions);
-  section.append(card);
-  return section;
-
-  function actionButton(label, decision, secondary) {
-    const button = element(
-      "button",
-      secondary ? "action-button secondary" : "action-button",
-      label,
-    );
-    button.type = "button";
-    button.addEventListener(
-      "click",
-      () => void submitDecision(evaluation.evaluationId, decision, note.value),
-    );
-    return button;
-  }
-}
-
-function renderDecisionReceipt(evaluation) {
-  const section = element("section", "section");
-  const receipt = element("div", "decision-receipt");
-  receipt.append(
-    element("p", "eyebrow", "PERSISTED DECISION"),
-    element("strong", "", evaluation.decision.decision),
-  );
-
-  const grid = element("div", "receipt-grid");
-  grid.append(
-    receiptField("Actor", evaluation.decision.actor),
-    receiptField("Recorded", formatDate(evaluation.decision.recordedAt)),
-    receiptField(
-      "Decision event",
-      evaluation.timeline.at(-1)?.eventId ?? "Unavailable",
-    ),
-  );
-
-  if (evaluation.decision.childEvaluationId) {
-    const field = element("div", "receipt-field");
-    field.append(element("span", "", "Child evaluation"));
-    const link = element(
-      "button",
-      "lineage-link",
-      evaluation.decision.childEvaluationId,
-    );
-    link.type = "button";
-    link.addEventListener(
-      "click",
-      () => void selectEvaluation(evaluation.decision.childEvaluationId),
-    );
-    field.append(link);
-    grid.append(field);
-  }
-
-  if (evaluation.parentEvaluationId) {
-    const field = element("div", "receipt-field");
-    field.append(element("span", "", "Parent evaluation"));
-    const link = element(
-      "button",
-      "lineage-link",
-      evaluation.parentEvaluationId,
-    );
-    link.type = "button";
-    link.addEventListener(
-      "click",
-      () => void selectEvaluation(evaluation.parentEvaluationId),
-    );
-    field.append(link);
-    grid.append(field);
-  }
-
-  receipt.append(grid);
-  section.append(receipt);
-  return section;
-}
-
-function renderTelemetry(evaluation) {
-  const section = element("section", "section");
-  const heading = element("div", "section-heading");
-  heading.append(
-    element("h3", "", "Evidence-chain receipts"),
-    element("span", "", `${evaluation.externalMutations} external mutations`),
-  );
-  section.append(heading);
-
-  const grid = element("div", "telemetry-grid");
-  for (const call of evaluation.toolCalls) {
-    const item = element("article", "telemetry-item");
-    item.append(
-      element("strong", "", call.toolName),
-      element("code", "", call.evidenceId),
-    );
-    if (call.provider) {
-      item.append(
-        element(
-          "span",
-          "telemetry-meta",
-          `${call.provider}${call.fetchedAt ? ` · ${formatDate(call.fetchedAt)}` : ""}`,
-        ),
-      );
-    }
-    if (call.sourceUrl) {
-      const source = element("a", "receipt-source", "Open provider receipt ↗");
-      source.href = call.sourceUrl;
-      source.target = "_blank";
-      source.rel = "noopener noreferrer";
-      item.append(source);
-    }
-    grid.append(item);
-  }
-  section.append(grid);
-  return section;
-}
-
-async function submitDecision(evaluationId, decision, note) {
-  if (state.decisionMode !== "local-interactive") {
-    showToast("This public demo does not accept decisions.", true);
-    return;
-  }
-  if (state.busy) return;
-  setBusy(true);
-  try {
-    const payload = await requestJson(
-      `/api/evaluations/${encodeURIComponent(evaluationId)}/decisions`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Idempotency-Key": `browser:${crypto.randomUUID()}`,
-        },
-        body: JSON.stringify({
-          decision,
-          actor: "local-reviewer",
-          ...(note.trim() ? { note: note.trim() } : {}),
-        }),
-      },
-    );
-    const nextId = payload.receipt.childEvaluationId ?? evaluationId;
-    showToast(
-      payload.receipt.childEvaluationId
-        ? "Decision persisted. Fresh child evaluation linked."
-        : "Decision persisted in the append-only timeline.",
-    );
-    await loadInbox(nextId);
-  } catch (error) {
-    showToast(errorMessage(error), true);
-  } finally {
-    setBusy(false);
-  }
-}
-
-async function runLiveVerification() {
-  if (state.busy || !state.liveVerificationEnabled) return;
-  setBusy(true);
-  verifyStatus.textContent =
-    "Strands is reading GitHub source, required CI, and the running revision…";
-  try {
-    const payload = await requestJson("/api/live-verifications", {
-      method: "POST",
-    });
-    verifyStatus.textContent = payload.receipt.replayed
-      ? "Verified receipt replayed for this deployed commit—no duplicate evidence record was written."
-      : "Fresh evidence chain persisted. Open the selected receipt below.";
-    showToast(
-      payload.receipt.replayed
-        ? "Existing live verification receipt replayed."
-        : "Live release verification completed.",
-    );
-    await loadInbox(payload.receipt.evaluationId);
-  } catch (error) {
-    verifyStatus.textContent =
-      "Verification failed closed. No release-ready claim was produced.";
-    showToast(errorMessage(error), true);
-  } finally {
-    setBusy(false);
+    releaseProofStatus.textContent = "No public release marker in this runtime";
   }
 }
 
 async function requestJson(path, options) {
   const response = await fetch(path, options);
-  const payload = await response.json();
+  const payload = await response.json().catch(() => null);
   if (!response.ok) {
     throw new Error(
-      payload.error?.message ?? `Request failed with ${response.status}.`,
+      payload?.error?.message ?? `Request failed with HTTP ${response.status}.`,
     );
   }
   return payload;
@@ -531,52 +521,32 @@ async function requestJson(path, options) {
 function setBusy(busy) {
   state.busy = busy;
   refreshButton.disabled = busy;
-  verifyButton.disabled = busy || !state.liveVerificationEnabled;
-  for (const button of document.querySelectorAll(
-    ".action-button, .inbox-item",
-  )) {
+  for (const button of document.querySelectorAll(".run-item, .action-button")) {
     button.disabled = busy;
   }
 }
 
-function expectedValue(evaluation, kind) {
-  if (kind === "CI status") return "success";
-  return evaluation.candidate.commit;
-}
-
-function valueBlock(label, value) {
-  const block = element("div", "evidence-value");
-  block.append(element("span", "", label), element("code", "", value));
-  block.title = value;
-  return block;
-}
-
-function receiptField(label, value) {
-  const field = element("div", "receipt-field");
-  field.append(element("span", "", label), element("code", "", value));
-  return field;
-}
-
 function renderEmpty(title, message) {
-  detail.replaceChildren();
+  runDetail.replaceChildren();
   const empty = element("div", "empty-state");
   empty.append(
     element("span", "empty-mark", "✓"),
     element("h2", "", title),
     element("p", "", message),
   );
-  detail.append(empty);
+  runDetail.append(empty);
+  renderMetrics();
 }
 
 function renderError(error) {
-  detail.replaceChildren();
-  const panel = element("div", "error-state");
+  runDetail.replaceChildren();
+  const panel = element("div", "empty-state error-state");
   panel.append(
     element("span", "empty-mark", "!"),
-    element("h2", "", "Evidence could not be loaded"),
+    element("h2", "", "Release runs could not be loaded"),
     element("p", "", errorMessage(error)),
   );
-  detail.append(panel);
+  runDetail.append(panel);
   showToast(errorMessage(error), true);
 }
 
@@ -588,21 +558,38 @@ function showToast(message, isError = false) {
   }, 4_000);
 }
 
-function errorMessage(error) {
-  return error instanceof Error
-    ? error.message
-    : "An unexpected error occurred.";
+function stateLabel(value) {
+  return (
+    {
+      MONITORING: "Observing",
+      WAITING: "Waiting safely",
+      AWAITING_DECISION: "Judgment needed",
+      RESUMING: "Resuming",
+      COMPLETED: "Completed quietly",
+      ESCALATED: "Escalated",
+      STOPPED: "Stopped safely",
+    }[value] ?? value
+  );
+}
+
+function choiceLabel(value) {
+  return value === "WAIT_AND_RECHECK"
+    ? "Wait and re-check"
+    : "Escalate one incident";
+}
+
+function choiceButtonLabel(value) {
+  return value === "WAIT_AND_RECHECK"
+    ? "Authorize final re-check"
+    : "Authorize one incident";
+}
+
+function humanizeTool(value) {
+  return value.replaceAll("_", " ");
 }
 
 function shortCommit(value) {
   return value.slice(0, 8);
-}
-
-function formatTime(value) {
-  return new Intl.DateTimeFormat(undefined, {
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(value));
 }
 
 function formatDate(value) {
@@ -610,6 +597,17 @@ function formatDate(value) {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(value));
+}
+
+function formatDuration(value) {
+  if (value < 1_000) return `${value} ms`;
+  return `${value / 1_000} s`;
+}
+
+function errorMessage(error) {
+  return error instanceof Error
+    ? error.message
+    : "An unexpected error occurred.";
 }
 
 function element(tagName, className = "", text = "") {

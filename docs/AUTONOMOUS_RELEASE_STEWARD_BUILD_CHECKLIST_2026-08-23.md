@@ -2,7 +2,7 @@
 
 ## Status
 
-`ITEM_8_COMPLETE_ITEM_9_HOLD`
+`ITEM_9_COMPLETE_ITEM_10_HOLD`
 
 This checklist is the implementation contract for the
 [technical specification](AUTONOMOUS_RELEASE_STEWARD_TECHNICAL_SPEC_2026-08-23.md).
@@ -204,7 +204,7 @@ documentation PR is reviewed and the user explicitly advances to the build.
       HOLD/rollback: Stop on any automatic retry, mutable target/body, token
       persistence, or claim of unconditional exactly-once. Revert Item 8 only.
 
-- [ ] **9. Replace the report-first browser with the exception-first product view**
+- [x] **9. Replace the report-first browser with the exception-first product view**
       Spec ref: `Autonomous Release Steward Technical Spec > Query APIs and browser projections`
       What to build: Add run list/detail queries and render current state, required
       attention, autonomous observations, waits, prompts, writes, decision facts,

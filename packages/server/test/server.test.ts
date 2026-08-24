@@ -70,11 +70,24 @@ test("serves one persisted Ready and mismatch workflow over HTTP", async () => {
     const browserResponse = await app.inject({ method: "GET", url: "/" });
     assert.equal(browserResponse.statusCode, 200);
     assert.match(browserResponse.headers["content-type"] ?? "", /^text\/html/);
-    assert.match(browserResponse.body, /Release evidence chain/);
-    assert.match(browserResponse.body, /Prove the code you reviewed/);
-    assert.match(browserResponse.body, /Live deployment identity/);
-    assert.match(browserResponse.body, /Verify this live release/);
+    assert.match(browserResponse.body, /AUTONOMY WITH A HUMAN BOUNDARY/);
+    assert.match(browserResponse.body, /Stop babysitting releases/);
+    assert.match(browserResponse.body, /Compare a quiet completion/);
+    assert.match(browserResponse.body, /What needs you/);
+    assert.doesNotMatch(browserResponse.body, /Verify this live release/);
     assert.doesNotMatch(browserResponse.body, /<script[^>]*>[^<]/);
+
+    const browserScript = await app.inject({ method: "GET", url: "/app.js" });
+    assert.equal(browserScript.statusCode, 200);
+    assert.match(browserScript.body, /requestJson\("\/api\/release-runs"\)/);
+    assert.match(browserScript.body, /\/api\/decisions\//);
+    assert.match(browserScript.body, /input\.type = "password"/);
+    assert.match(browserScript.body, /pollIntervalMs/);
+    assert.doesNotMatch(browserScript.body, /localStorage|sessionStorage/);
+    assert.doesNotMatch(
+      browserScript.body,
+      /api\/live-verifications|api\/inbox/,
+    );
   } finally {
     await app.close();
     await rm(directory, { recursive: true, force: true });

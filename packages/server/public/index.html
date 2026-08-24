@@ -5,10 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
-      content="QuietOps binds source, required CI, and the deployed revision into one auditable release decision."
+      content="QuietOps absorbs routine release monitoring and asks for human judgment only when safe autonomy runs out."
     />
     <meta data-quietops-product="release-steward" />
-    <title>QuietOps — Release evidence chain</title>
+    <title>QuietOps — Judgment, only when it matters</title>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="/styles.css" />
     <script src="/app.js" defer></script>
@@ -16,6 +16,7 @@
   <body>
     <div class="ambient ambient-one" aria-hidden="true"></div>
     <div class="ambient ambient-two" aria-hidden="true"></div>
+
     <header class="topbar">
       <a class="brand" href="/" aria-label="QuietOps home">
         <span class="brand-mark" aria-hidden="true">Q</span>
@@ -23,110 +24,133 @@
       </a>
       <div class="runtime-status">
         <span class="status-dot" aria-hidden="true"></span>
-        <span id="runtime-mode">Loading evidence mode</span>
+        <span id="runtime-mode">Loading release runs</span>
       </div>
     </header>
 
     <main class="shell">
-      <section class="intro" aria-labelledby="page-title">
-        <p class="eyebrow">RELEASE EVIDENCE CHAIN</p>
-        <h1 id="page-title">
-          Prove the code you reviewed<br />is the code actually running.
-        </h1>
-        <p class="intro-copy">
-          QuietOps uses Strands to bind source, required CI, and the deployed
-          revision into one auditable chain. Deterministic policy refuses
-          <strong>Ready</strong> when any link is missing or drifts—so people
-          decide the exception instead of reconstructing the evidence.
+      <section class="hero" aria-labelledby="page-title">
+        <div>
+          <p class="eyebrow">AUTONOMY WITH A HUMAN BOUNDARY</p>
+          <h1 id="page-title">
+            Stop babysitting releases.<br />Decide only what the agent cannot.
+          </h1>
+          <p class="hero-copy">
+            QuietOps watches bounded evidence, absorbs ordinary rollout delay,
+            and stays silent when the release is healthy. If safe autonomy runs
+            out, it asks one evidence-backed question, explains the
+            consequences, and resumes the same run with only the authority you
+            chose.
+          </p>
+        </div>
+        <ol class="autonomy-loop" aria-label="QuietOps autonomy loop">
+          <li>
+            <span>01</span><strong>Observe</strong
+            ><small>Bounded evidence</small>
+          </li>
+          <li>
+            <span>02</span><strong>Wait</strong
+            ><small>Persist, then sleep</small>
+          </li>
+          <li>
+            <span>03</span><strong>Ask once</strong
+            ><small>Only missing context</small>
+          </li>
+          <li>
+            <span>04</span><strong>Resume</strong
+            ><small>Scoped authority</small>
+          </li>
+        </ol>
+      </section>
+
+      <section class="demo-note" aria-label="Demonstration boundary">
+        <div>
+          <p class="eyebrow">INTERACTIVE PRODUCT WALKTHROUGH</p>
+          <strong
+            >Compare a quiet completion with a real human boundary.</strong
+          >
+        </div>
+        <p>
+          These histories are preserved and replayable. Explore every state and
+          provider receipt without changing shared data or starting an agent
+          run.
         </p>
       </section>
 
-      <section class="release-proof" aria-label="Live deployment identity">
-        <div class="release-proof-copy">
-          <p class="eyebrow">THIS LIVE DEPLOYMENT</p>
-          <strong>Machine-readable release identity</strong>
-          <span id="release-proof-status">Checking the no-store marker…</span>
-        </div>
-        <div class="release-proof-field">
-          <span>Repository</span>
-          <code id="release-repository">Loading…</code>
-        </div>
-        <div class="release-proof-field">
-          <span>Running commit</span>
-          <code id="release-commit">Loading…</code>
-        </div>
-      </section>
-
-      <section class="verification-runner" aria-labelledby="verify-title">
-        <div class="verification-copy">
-          <p class="eyebrow">TRY THE PRODUCT</p>
-          <h2 id="verify-title">Verify this live release</h2>
-          <p>
-            Start a fresh, read-only Strands run against the public repository,
-            its required CI workflow, and this deployment’s exact release
-            marker.
-          </p>
-        </div>
-        <ol class="verification-chain" aria-label="Verification chain">
-          <li>GitHub source</li>
-          <li>Required CI</li>
-          <li>Running revision</li>
-        </ol>
-        <div class="verification-action">
-          <button
-            id="verify-button"
-            class="verify-button"
-            type="button"
-            disabled
-          >
-            Verify this live release
-          </button>
-          <p id="verify-status" role="status" aria-live="polite">
-            No provider writes. One receipt per deployed commit.
-          </p>
-        </div>
-      </section>
-
-      <section class="metrics" aria-label="Release evaluation summary">
+      <section class="metrics" aria-label="Selected run summary">
         <article class="metric">
-          <span class="metric-label">Live verifications</span>
-          <strong id="live-count">—</strong>
-          <span>user-started evidence chains</span>
+          <span class="metric-label">Agent observations</span>
+          <strong id="observation-count">—</strong>
+          <span>bounded evidence cycles</span>
         </article>
         <article class="metric">
-          <span class="metric-label">Verified Ready</span>
-          <strong id="ready-count">—</strong>
-          <span>live releases with matching identity</span>
+          <span class="metric-label">Policy waits</span>
+          <strong id="wait-count">—</strong>
+          <span>persisted before sleep</span>
+        </article>
+        <article class="metric metric-attention">
+          <span class="metric-label">Human prompts</span>
+          <strong id="prompt-count">—</strong>
+          <span>judgment requests</span>
         </article>
         <article class="metric">
-          <span class="metric-label">External mutations</span>
-          <strong id="mutation-count">0</strong>
-          <span>read-only by design</span>
+          <span class="metric-label">External writes</span>
+          <strong id="write-count">—</strong>
+          <span>attempts, not claims</span>
         </article>
       </section>
 
-      <section class="workspace" aria-label="Release decision workspace">
-        <aside class="inbox-panel">
+      <section class="workspace" aria-label="Release autonomy workspace">
+        <aside class="run-panel">
           <div class="panel-heading">
             <div>
-              <p class="eyebrow">RELEASE INBOX</p>
+              <p class="eyebrow">RELEASE RUNS</p>
               <h2>What needs you</h2>
             </div>
-            <button id="refresh-button" class="icon-button" type="button">
+            <button id="refresh-button" class="quiet-button" type="button">
               Refresh
             </button>
           </div>
-          <div id="inbox" class="inbox" aria-live="polite"></div>
+          <div id="run-list" class="run-list" aria-live="polite"></div>
         </aside>
 
-        <section id="detail" class="detail-panel" aria-live="polite">
+        <section
+          id="run-detail"
+          class="detail-panel"
+          aria-live="polite"
+          aria-busy="true"
+        >
           <div class="empty-state">
             <span class="empty-mark" aria-hidden="true">↗</span>
-            <h2>Loading release evidence</h2>
-            <p>QuietOps is reconstructing the persisted decision record.</p>
+            <h2>Reconstructing the run</h2>
+            <p>Loading the persisted human–agent handoff.</p>
           </div>
         </section>
       </section>
+
+      <details class="deployment-proof">
+        <summary>Deployment identity and legacy evidence access</summary>
+        <div class="deployment-proof-grid">
+          <div>
+            <p class="eyebrow">THIS DEPLOYMENT</p>
+            <strong id="release-proof-status"
+              >Checking the no-store marker…</strong
+            >
+          </div>
+          <div>
+            <span>Repository</span>
+            <code id="release-repository">Loading…</code>
+          </div>
+          <div>
+            <span>Running commit</span>
+            <code id="release-commit">Loading…</code>
+          </div>
+          <p>
+            The previous read-only evaluation APIs remain available for existing
+            clients. This product view does not start verification runs.
+          </p>
+        </div>
+      </details>
     </main>
 
     <div id="toast" class="toast" role="status" aria-live="polite"></div>

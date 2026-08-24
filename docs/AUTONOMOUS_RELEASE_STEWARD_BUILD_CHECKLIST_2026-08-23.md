@@ -2,7 +2,7 @@
 
 ## Status
 
-`ITEM_4_COMPLETE_ITEM_5_HOLD`
+`ITEM_5_COMPLETE_ITEM_6_HOLD`
 
 This checklist is the implementation contract for the
 [technical specification](AUTONOMOUS_RELEASE_STEWARD_TECHNICAL_SPEC_2026-08-23.md).
@@ -131,7 +131,7 @@ documentation PR is reviewed and the user explicitly advances to the build.
       old deployment skips smoke, or if live mode can silently select the scripted
       model. Revert Item 4 only.
 
-- [ ] **5. Build the durable worker and quiet-completion path**
+- [x] **5. Build the durable worker and quiet-completion path**
       Spec ref: `Autonomous Release Steward Technical Spec > Architecture` and
       `> Primary data lifecycle`
       What to build: Add `ReleaseRunService`, projections, and a default-off

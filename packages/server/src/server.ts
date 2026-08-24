@@ -1,5 +1,4 @@
 import { readFile } from "node:fs/promises";
-import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 
 import {
@@ -13,7 +12,11 @@ import {
   EvaluationAlreadyResolvedError,
   EvaluationNotFoundError,
   EvaluationService,
+  ReleaseRunService,
+  ReleaseRunWorker,
   type EvaluationServiceOptions,
+  type ReleaseRunWorkerOptions,
+  type ReleaseRunWorkerShutdownResult,
 } from "@quietops/application";
 import { resolvePolicyProfile } from "@quietops/contracts";
 import {
@@ -78,6 +81,16 @@ export interface CreateQuietOpsServerOptions {
   readonly decisionMode?: DecisionMode;
   readonly releaseCommit?: string;
   readonly githubWebhook?: GitHubWebhookServerOptions;
+  readonly releaseWorker?: ReleaseWorkerServerOptions;
+}
+
+export interface ReleaseWorkerServerOptions extends Omit<
+  ReleaseRunWorkerOptions,
+  "service"
+> {
+  readonly onShutdown?: (
+    result: Readonly<ReleaseRunWorkerShutdownResult>,
+  ) => void;
 }
 
 export type DecisionMode = "local-interactive" | "public-read-only";
@@ -89,8 +102,12 @@ export async function createQuietOpsServer(
   const releaseCommit = normalizeReleaseCommit(options.releaseCommit);
   const githubWebhook = normalizeGitHubWebhook(options.githubWebhook);
   const ledger = new SQLiteEvaluationLedger(options.databasePath);
-  const releaseRunLedger = githubWebhook
-    ? new SQLiteReleaseRunLedger(options.databasePath)
+  const releaseRunLedger =
+    githubWebhook || options.releaseWorker
+      ? new SQLiteReleaseRunLedger(options.databasePath)
+      : undefined;
+  const releaseRunService = releaseRunLedger
+    ? new ReleaseRunService(releaseRunLedger)
     : undefined;
   const service = new EvaluationService(
     ledger,
@@ -105,8 +122,22 @@ export async function createQuietOpsServer(
     },
     trustProxy: false,
   });
+  const releaseWorker =
+    options.releaseWorker && releaseRunService
+      ? createReleaseWorker(releaseRunService, options.releaseWorker, (error) =>
+          app.log.error({ err: error }, "Release worker tick failed"),
+        )
+      : undefined;
 
-  app.addHook("onClose", () => {
+  app.addHook("onReady", () => {
+    releaseWorker?.start();
+  });
+
+  app.addHook("onClose", async () => {
+    if (releaseWorker) {
+      const shutdown = await releaseWorker.stop();
+      options.releaseWorker?.onShutdown?.(shutdown);
+    }
     releaseRunLedger?.close();
     ledger.close();
   });
@@ -205,7 +236,7 @@ export async function createQuietOpsServer(
     }));
   }
 
-  if (githubWebhook && releaseRunLedger) {
+  if (githubWebhook && releaseRunService) {
     app.register(async (webhookApp) => {
       webhookApp.removeContentTypeParser("application/json");
       webhookApp.addContentTypeParser(
@@ -253,16 +284,11 @@ export async function createQuietOpsServer(
             });
           }
 
-          const identity = webhookIdentity(inspection.deliveryId);
-          const result = releaseRunLedger.createRunFromWebhook({
-            runId: identity.runId,
-            triggerEventId: identity.eventId,
-            repository: QUIETOPS_REPOSITORY,
-            branch: "main",
+          const result = releaseRunService.createFromTrigger({
             candidateCommit: inspection.candidateCommit,
-            triggerDeliveryId: inspection.deliveryId,
+            deliveryId: inspection.deliveryId,
             policyProfile: resolvePolicyProfile("standard-v1"),
-            createdAt: (githubWebhook.now?.() ?? new Date()).toISOString(),
+            occurredAt: (githubWebhook.now?.() ?? new Date()).toISOString(),
           });
           return reply.code(202).send({
             accepted: true,
@@ -426,16 +452,16 @@ function normalizeGitHubWebhook(
   });
 }
 
-function webhookIdentity(deliveryId: string): Readonly<{
-  runId: string;
-  eventId: string;
-}> {
-  const digest = createHash("sha256")
-    .update(`github-delivery:${deliveryId}`)
-    .digest("hex");
-  return Object.freeze({
-    runId: `github:${digest}`,
-    eventId: `github-trigger:${digest}`,
+function createReleaseWorker(
+  service: ReleaseRunService,
+  options: ReleaseWorkerServerOptions,
+  defaultOnError: (error: unknown) => void,
+): ReleaseRunWorker {
+  const { onShutdown: _onShutdown, ...workerOptions } = options;
+  return new ReleaseRunWorker({
+    ...workerOptions,
+    service,
+    onError: options.onError ?? defaultOnError,
   });
 }
 

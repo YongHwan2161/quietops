@@ -295,7 +295,9 @@ run projection. Durable state belongs to SQLite, not the model conversation.
 
 `observe_homepage_smoke` accepts no URL input. It rejects redirects, credentials,
 non-HTML responses, bodies over 256 KiB, and responses beyond eight seconds. It
-requires HTTP `200` plus a stable product marker in the served HTML. Deployment
+requires HTTP `200` plus the stable
+`data-quietops-product="release-steward"` marker in the served HTML. The timeout
+covers both response headers and the complete bounded body. Deployment
 identity remains the separate signed-by-configuration release-marker claim; the
 smoke collector does not pretend to prove a commit.
 

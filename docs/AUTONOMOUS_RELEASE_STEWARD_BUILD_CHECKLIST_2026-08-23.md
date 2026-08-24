@@ -2,7 +2,7 @@
 
 ## Status
 
-`ITEM_3_COMPLETE_ITEM_4_HOLD`
+`ITEM_4_COMPLETE_ITEM_5_HOLD`
 
 This checklist is the implementation contract for the
 [technical specification](AUTONOMOUS_RELEASE_STEWARD_TECHNICAL_SPEC_2026-08-23.md).
@@ -113,7 +113,7 @@ documentation PR is reviewed and the user explicitly advances to the build.
       Fastify parses JSON before signature validation or accepts browser-selected
       targets. Revert Item 3 only.
 
-- [ ] **4. Add homepage smoke and state-scoped Strands observation tools**
+- [x] **4. Add homepage smoke and state-scoped Strands observation tools**
       Spec ref: `Autonomous Release Steward Technical Spec > Observation-cycle contract`
       What to build: Add the construction-bound homepage smoke adapter, dynamic
       Strands tool registry, per-state tool budget/plugin, receipt recorder, and pure

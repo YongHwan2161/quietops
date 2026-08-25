@@ -364,6 +364,10 @@ export class SQLiteReleaseRunLedger {
           `SELECT ${HEAD_COLUMNS}
            FROM release_run_heads
            WHERE state IN ('MONITORING', 'WAITING', 'AWAITING_DECISION', 'RESUMING')
+             AND run_id NOT IN (
+               SELECT run_id FROM release_runs
+               WHERE trigger_delivery_id LIKE 'preserved-demo:%'
+             )
              AND (lease_expires_at IS NULL OR lease_expires_at <= ?)
              AND (
                state IN ('MONITORING', 'RESUMING')
@@ -757,6 +761,25 @@ export class SQLiteReleaseRunLedger {
     this.#requireOpen();
     const row = this.#readRunRow(runId);
     return row ? mapRun(row) : undefined;
+  }
+
+  listRuns(limit = 100): readonly StoredReleaseRun[] {
+    this.#requireOpen();
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100) {
+      throw new Error(
+        "Release run list limit must be an integer from 1 through 100.",
+      );
+    }
+    const rows = this.#database
+      .prepare(
+        `SELECT run_id, repository, branch, candidate_commit,
+                trigger_delivery_id, policy_profile_json, created_at
+         FROM release_runs
+         ORDER BY created_at DESC, run_id ASC
+         LIMIT ?`,
+      )
+      .all(limit) as unknown as readonly ReleaseRunRow[];
+    return Object.freeze(rows.map(mapRun));
   }
 
   getHead(runId: string): StoredReleaseRunHead | undefined {

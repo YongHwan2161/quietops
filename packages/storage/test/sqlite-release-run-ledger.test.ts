@@ -226,6 +226,48 @@ test("creates and replays one webhook run while preserving immutable audit truth
   }
 });
 
+test("lists newest runs while keeping preserved demonstrations outside worker claims", () => {
+  const ledger = new SQLiteReleaseRunLedger();
+  try {
+    ledger.createRunFromWebhook(
+      trigger({
+        runId: "live-run",
+        triggerEventId: "live-event",
+        triggerDeliveryId: "live-delivery",
+        createdAt: "2026-08-23T12:00:00.000Z",
+      }),
+    );
+    ledger.createRunFromWebhook(
+      trigger({
+        runId: "preserved-run",
+        triggerEventId: "preserved-event",
+        triggerDeliveryId: "preserved-demo:browser",
+        createdAt: "2026-08-23T12:00:01.000Z",
+      }),
+    );
+
+    assert.deepEqual(
+      ledger.listRuns().map((run) => run.runId),
+      ["preserved-run", "live-run"],
+    );
+    assert.deepEqual(
+      ledger.listRuns(1).map((run) => run.runId),
+      ["preserved-run"],
+    );
+    assert.throws(() => ledger.listRuns(0), /integer from 1 through 100/);
+
+    const claim = ledger.claimNextDueRun(
+      "worker-live-only",
+      "2026-08-23T12:00:02.000Z",
+      1_000,
+    );
+    assert.equal(claim?.runId, "live-run");
+    assert.equal(ledger.getHead("preserved-run")?.leaseOwner, null);
+  } finally {
+    ledger.close();
+  }
+});
+
 test("commits events and heads with CAS, rolls back conflicts, and rebuilds a deleted head", () => {
   const fixture = createFixture("cas-rebuild");
   let ledger = new SQLiteReleaseRunLedger(fixture.path);

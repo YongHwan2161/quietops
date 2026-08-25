@@ -14,6 +14,7 @@ import {
   EvaluationService,
   ReleaseDecisionExpiredError,
   ReleaseDecisionNotFoundError,
+  ReleaseRunNotFoundError,
   ReleaseRunService,
   ReleaseRunWorker,
   type EvaluationServiceOptions,
@@ -43,6 +44,7 @@ import {
   normalizeOperatorToken,
   verifyOperatorBearer,
 } from "./operator-auth.js";
+import { seedReleaseDemoRuns } from "./release-demo-seed.js";
 
 const PUBLIC_FILES = Object.freeze({
   "/": Object.freeze({
@@ -83,6 +85,10 @@ interface DecisionBody {
 
 interface ReleaseDecisionParams {
   readonly decisionId: string;
+}
+
+interface ReleaseRunParams {
+  readonly runId: string;
 }
 
 interface ReleaseDecisionHeaders {
@@ -136,13 +142,8 @@ export async function createQuietOpsServer(
   const githubWebhook = normalizeGitHubWebhook(options.githubWebhook);
   const releaseDecision = normalizeReleaseDecision(options.releaseDecision);
   const ledger = new SQLiteEvaluationLedger(options.databasePath);
-  const releaseRunLedger =
-    githubWebhook || options.releaseWorker || releaseDecision
-      ? new SQLiteReleaseRunLedger(options.databasePath)
-      : undefined;
-  const releaseRunService = releaseRunLedger
-    ? new ReleaseRunService(releaseRunLedger)
-    : undefined;
+  const releaseRunLedger = new SQLiteReleaseRunLedger(options.databasePath);
+  const releaseRunService = new ReleaseRunService(releaseRunLedger);
   const service = new EvaluationService(
     ledger,
     options.evaluationServiceOptions,
@@ -172,7 +173,7 @@ export async function createQuietOpsServer(
       const shutdown = await releaseWorker.stop();
       options.releaseWorker?.onShutdown?.(shutdown);
     }
-    releaseRunLedger?.close();
+    releaseRunLedger.close();
     ledger.close();
   });
 
@@ -262,6 +263,10 @@ export async function createQuietOpsServer(
       return;
     }
     if (error instanceof ReleaseDecisionNotFoundError) {
+      sendError(reply, 404, error.code, error.message);
+      return;
+    }
+    if (error instanceof ReleaseRunNotFoundError) {
       sendError(reply, 404, error.code, error.message);
       return;
     }
@@ -398,6 +403,37 @@ export async function createQuietOpsServer(
     );
   }
 
+  app.get("/api/release-runs", async () => ({
+    capabilities: Object.freeze({
+      decisionMode,
+      pollIntervalMs: 2_000,
+      operatorDecision: Object.freeze({
+        enabled: releaseDecision !== undefined,
+        authorityStorage: "memory-only",
+      }),
+    }),
+    items: releaseRunService.listPublicRuns(),
+  }));
+
+  app.get<{ Params: ReleaseRunParams }>(
+    "/api/release-runs/:runId",
+    { schema: { params: releaseRunParamsSchema } },
+    async (request) => {
+      const run = releaseRunService.getPublicRunDetail(request.params.runId);
+      return {
+        capabilities: Object.freeze({
+          decisionMode,
+          pollIntervalMs: 2_000,
+          canDecide:
+            releaseDecision !== undefined &&
+            run.evidenceMode === "live" &&
+            run.attentionRequired,
+        }),
+        run,
+      };
+    },
+  );
+
   app.get("/api/inbox", async () => ({
     capabilities: Object.freeze({
       decisionMode,
@@ -503,6 +539,7 @@ export async function createQuietOpsServer(
     if (options.seedDemo && service.listInbox().length === 0) {
       await service.startDemoEvaluations(["ready", "deployed-sha-mismatch"]);
     }
+    if (options.seedDemo) seedReleaseDemoRuns(releaseRunLedger);
   } catch (error) {
     await app.close();
     throw error;
@@ -593,6 +630,20 @@ const evaluationParamsSchema = Object.freeze({
       minLength: 1,
       maxLength: 128,
       pattern: "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+    },
+  },
+});
+
+const releaseRunParamsSchema = Object.freeze({
+  type: "object",
+  additionalProperties: false,
+  required: ["runId"],
+  properties: {
+    runId: {
+      type: "string",
+      minLength: 1,
+      maxLength: 128,
+      pattern: "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
     },
   },
 });

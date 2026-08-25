@@ -18,15 +18,20 @@ import {
   parseDecisionChoice,
   parseDecisionEnvelope,
   parseDecisionSubmission,
+  isTerminalReleaseRunState,
+  parseReleaseRunPublicProjection,
   parseReleaseRunSignal,
+  parseReleaseRunStopCode,
   planReleaseRunTransition,
   type DecisionChoice,
   type DecisionEnvelope,
   type DecisionEvidenceReference,
   type DecisionSubmission,
   type PolicyProfile,
+  type ReleaseRunPublicProjection,
   type ReleaseRunSignal,
   type ReleaseRunState,
+  type ReleaseRunStopCode,
 } from "@quietops/contracts";
 import {
   ReleaseRunStateError,
@@ -134,6 +139,15 @@ export class ReleaseDecisionExpiredError extends Error {
   }
 }
 
+export class ReleaseRunNotFoundError extends Error {
+  readonly code = "RELEASE_RUN_NOT_FOUND" as const;
+
+  constructor(runId: string) {
+    super(`Release run ${runId} was not found.`);
+    this.name = "ReleaseRunNotFoundError";
+  }
+}
+
 export interface BegunIncidentAction {
   readonly action: Readonly<StoredExternalAction>;
   readonly plan: Readonly<GitHubIncidentPlan>;
@@ -162,6 +176,71 @@ export interface ReleaseRunProjection {
   readonly humanPrompts: number;
   readonly externalWriteAttempts: number;
   readonly quietCompletion: boolean;
+  readonly stopCode: ReleaseRunStopCode | null;
+}
+
+export type ReleaseRunEvidenceMode = "live" | "preserved-demo";
+
+export interface ReleaseRunInboxProjection extends ReleaseRunPublicProjection {
+  readonly evidenceMode: ReleaseRunEvidenceMode;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+  readonly active: boolean;
+  readonly headline: string;
+  readonly summary: string;
+}
+
+export interface ReleaseRunTimelineProjection {
+  readonly sequence: number;
+  readonly eventType: StoredReleaseRunEvent["eventType"];
+  readonly occurredAt: string;
+  readonly title: string;
+  readonly detail: string;
+}
+
+export interface ReleaseRunReceiptProjection {
+  readonly toolName: string;
+  readonly evidenceId: string;
+  readonly provider: string;
+  readonly providerRecordId: string;
+  readonly sourceUrl: string | null;
+  readonly fetchedAt: string;
+}
+
+export interface ReleaseRunDecisionProjection {
+  readonly decisionId: string;
+  readonly status: "PENDING" | "AUTHORIZED" | "EXPIRED";
+  readonly missingContext: string;
+  readonly createdAt: string;
+  readonly expiresAt: string;
+  readonly expectedRunVersion: number;
+  readonly choices: DecisionEnvelope["choices"];
+  readonly authorizedChoice: DecisionChoice | null;
+  readonly authorizedAt: string | null;
+}
+
+export interface ReleaseRunActionProjection {
+  readonly actionId: string;
+  readonly actionType: "CREATE_GITHUB_INCIDENT";
+  readonly status: StoredExternalAction["status"];
+  readonly attemptCount: 0 | 1;
+  readonly requestFingerprint: string;
+  readonly providerRecordId: string | null;
+  readonly providerUrl: string | null;
+  readonly responseDigest: string | null;
+}
+
+export interface ReleaseRunDetailProjection extends ReleaseRunInboxProjection {
+  readonly repository: typeof REPOSITORY;
+  readonly branch: typeof BRANCH;
+  readonly version: number;
+  readonly policyProfile: string;
+  readonly nextWakeAt: string | null;
+  readonly measuredWaitMs: number;
+  readonly decision: Readonly<ReleaseRunDecisionProjection> | null;
+  readonly action: Readonly<ReleaseRunActionProjection> | null;
+  readonly timeline: readonly Readonly<ReleaseRunTimelineProjection>[];
+  readonly receipts: readonly Readonly<ReleaseRunReceiptProjection>[];
 }
 
 export interface ReleaseRunServiceOptions {
@@ -241,6 +320,15 @@ export class ReleaseRunService {
       envelope.runId !== requestEvent.runId
     ) {
       throw new Error("Stored decision envelope identity is invalid.");
+    }
+    const decisionRun = this.#ledger.getRun(envelope.runId);
+    if (
+      !decisionRun ||
+      releaseRunEvidenceMode(decisionRun) === "preserved-demo"
+    ) {
+      throw new ReleaseRunStateError(
+        "Preserved demonstration runs cannot accept operator decisions.",
+      );
     }
     const existingAuthorization = findDecisionAuthorization(
       this.#ledger.listEvents(envelope.runId),
@@ -635,8 +723,35 @@ export class ReleaseRunService {
   getProjection(runId: string): Readonly<ReleaseRunProjection> {
     const run = this.#ledger.getRun(runId);
     const head = this.#ledger.getHead(runId);
-    if (!run || !head) throw new Error(`Release run ${runId} was not found.`);
+    if (!run || !head) throw new ReleaseRunNotFoundError(runId);
     return projectReleaseRun(run, head, this.#ledger.listEvents(runId));
+  }
+
+  listPublicRuns(): readonly Readonly<ReleaseRunInboxProjection>[] {
+    const items = this.#ledger.listRuns().map((run) => {
+      const head = this.#ledger.getHead(run.runId);
+      if (!head) {
+        throw new Error(`Release run ${run.runId} is missing its head.`);
+      }
+      return projectReleaseRunInbox(
+        run,
+        projectReleaseRun(run, head, this.#ledger.listEvents(run.runId)),
+      );
+    });
+    return Object.freeze(items.sort(compareReleaseRunInbox));
+  }
+
+  getPublicRunDetail(runId: string): Readonly<ReleaseRunDetailProjection> {
+    const run = this.#ledger.getRun(runId);
+    const head = this.#ledger.getHead(runId);
+    if (!run || !head) throw new ReleaseRunNotFoundError(runId);
+    const events = this.#ledger.listEvents(runId);
+    const projection = projectReleaseRun(run, head, events);
+    const actionId = readReservedActionId(events);
+    const action = actionId
+      ? (this.#ledger.getExternalAction(actionId) ?? null)
+      : null;
+    return projectReleaseRunDetail(run, projection, events, action);
   }
 
   #appendTransition(
@@ -881,7 +996,350 @@ function projectReleaseRun(
       head.state === "COMPLETED" &&
       humanPrompts === 0 &&
       externalWriteAttempts === 0,
+    stopCode: readLatestStopCode(events),
   });
+}
+
+function projectReleaseRunInbox(
+  run: Readonly<StoredReleaseRun>,
+  projection: Readonly<ReleaseRunProjection>,
+): Readonly<ReleaseRunInboxProjection> {
+  const publicProjection = parseReleaseRunPublicProjection({
+    runId: run.runId,
+    state: projection.state,
+    candidateCommit: run.candidateCommit,
+    attentionRequired: projection.state === "AWAITING_DECISION",
+    observationCount: projection.observationCount,
+    waitCount: projection.waitCount,
+    humanPromptCount: projection.humanPrompts,
+    externalWriteAttemptCount: projection.externalWriteAttempts,
+    stopCode: projection.stopCode,
+  });
+  const message = releaseRunMessage(projection);
+  return Object.freeze({
+    ...publicProjection,
+    evidenceMode: releaseRunEvidenceMode(run),
+    createdAt: run.createdAt,
+    updatedAt: projection.updatedAt,
+    active: !isTerminalReleaseRunState(projection.state),
+    headline: message.headline,
+    summary: message.summary,
+  });
+}
+
+function projectReleaseRunDetail(
+  run: Readonly<StoredReleaseRun>,
+  projection: Readonly<ReleaseRunProjection>,
+  events: readonly StoredReleaseRunEvent[],
+  action: Readonly<StoredExternalAction> | null,
+): Readonly<ReleaseRunDetailProjection> {
+  const inbox = projectReleaseRunInbox(run, projection);
+  return Object.freeze({
+    ...inbox,
+    repository: run.repository,
+    branch: run.branch,
+    version: projection.version,
+    policyProfile: `${run.policyProfile.name}@${run.policyProfile.version}`,
+    nextWakeAt: projection.nextWakeAt,
+    measuredWaitMs: projection.measuredWaitMs,
+    decision: projectReleaseDecision(projection, events),
+    action: action
+      ? Object.freeze({
+          actionId: action.actionId,
+          actionType: action.actionType,
+          status: action.status,
+          attemptCount: action.attemptCount,
+          requestFingerprint: action.requestFingerprint,
+          providerRecordId: action.providerRecordId,
+          providerUrl: action.providerUrl,
+          responseDigest: action.responseDigest,
+        })
+      : null,
+    timeline: Object.freeze(events.map(projectTimelineEvent)),
+    receipts: Object.freeze(projectReleaseReceipts(events)),
+  });
+}
+
+function projectReleaseDecision(
+  projection: Readonly<ReleaseRunProjection>,
+  events: readonly StoredReleaseRunEvent[],
+): Readonly<ReleaseRunDecisionProjection> | null {
+  const envelope = projection.decisionEnvelope;
+  if (!envelope) return null;
+  const record = events.find(
+    (event) => event.eventType === "decision-recorded",
+  );
+  const authorizedChoice = record
+    ? parseDecisionChoice(record.payload.choice)
+    : null;
+  return Object.freeze({
+    decisionId: envelope.decisionId,
+    status: record
+      ? "AUTHORIZED"
+      : projection.stopCode === "DECISION_EXPIRED"
+        ? "EXPIRED"
+        : "PENDING",
+    missingContext: envelope.missingContext,
+    createdAt: envelope.createdAt,
+    expiresAt: envelope.expiresAt,
+    expectedRunVersion: envelope.expectedRunVersion,
+    choices: envelope.choices,
+    authorizedChoice,
+    authorizedAt: record?.occurredAt ?? null,
+  });
+}
+
+function projectTimelineEvent(
+  event: Readonly<StoredReleaseRunEvent>,
+): Readonly<ReleaseRunTimelineProjection> {
+  const text = timelineMessage(event);
+  return Object.freeze({
+    sequence: event.sequence,
+    eventType: event.eventType,
+    occurredAt: event.occurredAt,
+    title: text.title,
+    detail: text.detail,
+  });
+}
+
+function projectReleaseReceipts(
+  events: readonly StoredReleaseRunEvent[],
+): readonly Readonly<ReleaseRunReceiptProjection>[] {
+  const receipts: ReleaseRunReceiptProjection[] = [];
+  for (const event of events) {
+    if (event.eventType !== "observation-recorded") continue;
+    const rawReceipts = event.payload.receipts;
+    if (!Array.isArray(rawReceipts)) {
+      throw new Error("Stored observation receipts are invalid.");
+    }
+    for (const raw of rawReceipts) {
+      if (
+        !isJsonObject(raw) ||
+        typeof raw.toolName !== "string" ||
+        typeof raw.evidenceId !== "string" ||
+        typeof raw.provider !== "string" ||
+        typeof raw.providerRecordId !== "string" ||
+        (raw.sourceUrl !== undefined && typeof raw.sourceUrl !== "string") ||
+        typeof raw.fetchedAt !== "string"
+      ) {
+        throw new Error("Stored observation receipt is invalid.");
+      }
+      receipts.push(
+        Object.freeze({
+          toolName: raw.toolName,
+          evidenceId: raw.evidenceId,
+          provider: raw.provider,
+          providerRecordId: raw.providerRecordId,
+          sourceUrl: raw.sourceUrl ?? null,
+          fetchedAt: raw.fetchedAt,
+        }),
+      );
+    }
+  }
+  return receipts;
+}
+
+function releaseRunMessage(
+  projection: Readonly<ReleaseRunProjection>,
+): Readonly<{ headline: string; summary: string }> {
+  switch (projection.state) {
+    case "MONITORING":
+      return Object.freeze({
+        headline: "QuietOps is checking the release",
+        summary: "The agent is collecting bounded release evidence.",
+      });
+    case "WAITING":
+      return Object.freeze({
+        headline: "QuietOps is absorbing rollout delay",
+        summary: "A policy-bounded wait was stored before the agent slept.",
+      });
+    case "AWAITING_DECISION":
+      return Object.freeze({
+        headline: "Your judgment is needed",
+        summary:
+          projection.decisionEnvelope?.missingContext ??
+          "The safe autonomous budget ended with one context-dependent choice.",
+      });
+    case "RESUMING":
+      return Object.freeze({
+        headline: "Your decision is being carried out",
+        summary:
+          "QuietOps resumed the same release run with bounded authority.",
+      });
+    case "COMPLETED":
+      return projection.quietCompletion
+        ? Object.freeze({
+            headline: "Released without interrupting you",
+            summary: `QuietOps completed ${projection.observationCount} observation cycle${projection.observationCount === 1 ? "" : "s"} with zero human prompts and zero external writes.`,
+          })
+        : Object.freeze({
+            headline: "Release completed after your decision",
+            summary:
+              "The original run resumed and reached its verified candidate.",
+          });
+    case "ESCALATED":
+      return Object.freeze({
+        headline: "Incident escalation confirmed",
+        summary:
+          "One authorized incident attempt returned a bound provider receipt.",
+      });
+    case "STOPPED":
+      return Object.freeze({
+        headline: "QuietOps stopped safely",
+        summary: stopCodeMessage(projection.stopCode),
+      });
+  }
+}
+
+function timelineMessage(
+  event: Readonly<StoredReleaseRunEvent>,
+): Readonly<{ title: string; detail: string }> {
+  switch (event.eventType) {
+    case "release-triggered":
+      return Object.freeze({
+        title: "Release detected",
+        detail: "A fixed main-branch event created this durable run.",
+      });
+    case "observation-recorded":
+      return Object.freeze({
+        title: "Agent observation committed",
+        detail: `${readNonNegativeInteger(event.payload.receiptCount, "receiptCount")} bounded tool receipt${event.payload.receiptCount === 1 ? " was" : "s were"} stored without external writes.`,
+      });
+    case "wait-scheduled":
+      return Object.freeze({
+        title: "Routine delay absorbed",
+        detail: "QuietOps stored its next wake time before sleeping.",
+      });
+    case "run-woke":
+      return Object.freeze({
+        title: "Observation resumed",
+        detail: "The same run woke at its policy boundary.",
+      });
+    case "decision-requested":
+      return Object.freeze({
+        title: "Human context requested",
+        detail:
+          "Safe observation was exhausted while the current release remained healthy.",
+      });
+    case "decision-recorded":
+      return Object.freeze({
+        title: "Owner decision authorized",
+        detail:
+          event.payload.choice === "ESCALATE_INCIDENT"
+            ? "One evidence-bound incident attempt was authorized."
+            : "One final bounded wait and re-check was authorized.",
+      });
+    case "action-reserved":
+      return Object.freeze({
+        title: "Incident action reserved",
+        detail:
+          "The immutable request fingerprint was stored before provider access.",
+      });
+    case "action-attempted":
+      return Object.freeze({
+        title: "Incident attempt started",
+        detail: "The one-attempt budget was consumed before the provider call.",
+      });
+    case "action-confirmed":
+      return Object.freeze({
+        title: "Incident confirmed",
+        detail: "GitHub returned one repository-bound issue receipt.",
+      });
+    case "action-rejected":
+      return Object.freeze({
+        title: "Incident rejected",
+        detail:
+          "The provider deterministically rejected the authorized request.",
+      });
+    case "action-uncertain":
+      return Object.freeze({
+        title: "Incident outcome uncertain",
+        detail:
+          "QuietOps stopped without retrying an ambiguous provider outcome.",
+      });
+    case "run-completed":
+      return Object.freeze({
+        title: "Release complete",
+        detail: "The candidate and user-facing smoke evidence converged.",
+      });
+    case "run-stopped":
+      return Object.freeze({
+        title: "Run stopped safely",
+        detail: stopCodeMessage(readEventStopCode(event)),
+      });
+    case "run-superseded":
+      return Object.freeze({
+        title: "Run superseded",
+        detail: "A newer release candidate replaced this run.",
+      });
+  }
+}
+
+function releaseRunEvidenceMode(
+  run: Readonly<StoredReleaseRun>,
+): ReleaseRunEvidenceMode {
+  return run.triggerDeliveryId.startsWith("preserved-demo:")
+    ? "preserved-demo"
+    : "live";
+}
+
+function compareReleaseRunInbox(
+  left: Readonly<ReleaseRunInboxProjection>,
+  right: Readonly<ReleaseRunInboxProjection>,
+): number {
+  if (left.attentionRequired !== right.attentionRequired) {
+    return left.attentionRequired ? -1 : 1;
+  }
+  if (left.active !== right.active) return left.active ? -1 : 1;
+  return (
+    right.updatedAt.localeCompare(left.updatedAt) ||
+    left.runId.localeCompare(right.runId)
+  );
+}
+
+function readLatestStopCode(
+  events: readonly StoredReleaseRunEvent[],
+): ReleaseRunStopCode | null {
+  for (const event of [...events].reverse()) {
+    if (
+      event.payload.stopCode !== undefined &&
+      event.payload.stopCode !== null
+    ) {
+      return parseReleaseRunStopCode(event.payload.stopCode);
+    }
+  }
+  return null;
+}
+
+function readEventStopCode(
+  event: Readonly<StoredReleaseRunEvent>,
+): ReleaseRunStopCode {
+  if (event.payload.stopCode === null || event.payload.stopCode === undefined) {
+    throw new Error("Stored stopped event has no stop code.");
+  }
+  return parseReleaseRunStopCode(event.payload.stopCode);
+}
+
+function stopCodeMessage(code: ReleaseRunStopCode | null): string {
+  const messages: Readonly<Record<ReleaseRunStopCode, string>> = Object.freeze({
+    REQUIRED_CI_FAILED:
+      "Required CI failed, so no release action was attempted.",
+    EVIDENCE_INVALID: "Evidence contradicted the release identity contract.",
+    EVIDENCE_UNAVAILABLE: "Required evidence could not be obtained safely.",
+    DEPLOYMENT_UNHEALTHY: "The currently deployed revision was not healthy.",
+    HOMEPAGE_SMOKE_UNHEALTHY: "The user-facing homepage smoke check failed.",
+    DECISION_EXPIRED:
+      "The decision expired without silently choosing for the owner.",
+    EXTENSION_EXHAUSTED:
+      "The one authorized extension ended without convergence.",
+    ACTION_REJECTED: "The provider rejected the authorized incident request.",
+    ACTION_OUTCOME_UNCERTAIN:
+      "The provider outcome was ambiguous, so QuietOps did not retry.",
+    SUPERSEDED: "A newer candidate replaced this release run.",
+  });
+  return code
+    ? messages[code]
+    : "The run ended at a deterministic safety boundary.";
 }
 
 function expectedObservationPhase(

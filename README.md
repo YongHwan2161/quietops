@@ -10,13 +10,12 @@ an incident. It then resumes the same run and proves the bounded result.
 [quietops-production.up.railway.app](https://quietops-production.up.railway.app)
 
 > Current boundary: the public site demonstrates the existing read-only verifier,
-> not the redesigned product. The local, default-off successor now has signed
-> event intake, a durable worker, persisted wait/restart recovery, browser smoke
-> evidence, one expiring decision envelope, and authenticated same-run
+> not the redesigned product. The local, default-off successor now includes the
+> exception-first browser, signed event intake, a durable worker, persisted
+> wait/restart recovery, one expiring decision envelope, and authenticated same-run
 > resume for both decisions. Its fixed-target incident path reserves an immutable
 > request before one injected provider attempt and stops safely on ambiguous
-> outcomes. The exception-first browser and live successor deployment remain
-> unimplemented gates.
+> outcomes. Live AWS validation and successor deployment remain separate gates.
 
 ## The core idea
 
@@ -65,6 +64,7 @@ The following is the approved P0 target, not the current public implementation:
 - [Autonomous Release Steward redirection and 90-second demo gate](docs/AUTONOMOUS_RELEASE_STEWARD_REDIRECTION_2026-08-23.md)
 - [Autonomous Release Steward technical specification](docs/AUTONOMOUS_RELEASE_STEWARD_TECHNICAL_SPEC_2026-08-23.md)
 - [Autonomous Release Steward build checklist](docs/AUTONOMOUS_RELEASE_STEWARD_BUILD_CHECKLIST_2026-08-23.md)
+- [Exception-first browser verification](docs/EXCEPTION_FIRST_BROWSER_2026-08-24.md)
 - [Hosting-target decision and external gate](docs/HOSTING_TARGET_DECISION_2026-08-22.md)
 - [Stage 4C-1a public-demo decision boundary](docs/PUBLIC_DEMO_DECISION_BOUNDARY_2026-08-22.md)
 - [Stage 4C-1b host, port, and health boundary](docs/HOST_PORT_HEALTH_BOUNDARY_2026-08-22.md)
@@ -79,10 +79,10 @@ The following is the approved P0 target, not the current public implementation:
 
 ## Current status
 
-- Active product direction: Autonomous Release Steward checklist Items 1–8 are implemented locally; Item 9's exception-first browser is the next HOLD
+- Active product direction: Autonomous Release Steward checklist Items 1–9 are implemented locally; Item 10's live Bedrock, deployment, webhook, and credential-install gates are the next HOLD
 - Current implementation baseline: the default-off successor accepts a signed fixed-target push, runs bounded Strands observations in a durable worker, quietly completes a converged release, persists policy waits before sleeping, recovers the same run after restart, requests one expiring decision only after the healthy delayed path exhausts its normal observation budget, and resumes that same run for either one authorized extension or one reserved incident attempt
 - Implementation: candidate identity, bounded Ready/mismatch Strands paths, a three-tool live source/CI/deployment path, deterministic policy, an append-only SQLite ledger, per-release idempotent replay, human-decision lineage for preserved mismatch cases, inbox/detail projections, and provider receipt links
-- Browser and API: the guarded Fastify server defaults to loopback and exposes the legacy inbox/detail/live-verification routes plus a default-off, signed fixed-target GitHub webhook. Injecting a bounded operator token enables `POST /api/decisions/:decisionId`; the server derives the `release-owner` actor, rejects stale/expired/foreign/conflicting or repeated decisions, and never accepts authority from the browser body. `ESCALATE_INCIDENT` now atomically reserves one immutable `YongHwan2161/quietops` issue request before the injectable worker may access a provider. No live issue credential is installed and no arbitrary repository or URL input is accepted.
+- Browser and API: the guarded Fastify server defaults to loopback and now leads with attention-ranked release runs rather than a manual verifier. `GET /api/release-runs` and `GET /api/release-runs/:runId` expose persisted observations, waits, prompts, writes, the one human question, consequences, same-run result, and expandable receipts. Preserved demonstrations are visibly labeled, excluded from worker claims, and cannot accept a decision. Live decisions use one in-memory password input for `POST /api/decisions/:decisionId`; the server derives the `release-owner` actor, rejects stale/expired/foreign/conflicting or repeated decisions, and never accepts authority from the browser body. The legacy inbox/detail/live-verification routes remain compatible. No live issue credential is installed and no arbitrary repository or URL input is accepted.
 - Live integration status: the complete GitHub source → required CI → Railway marker → policy → SQLite path passes both injected tests and one actual provider-backed local browser journey. It returned `Ready` for predecessor commit `1edbded139c0e7e8ec6e90e9d8f8ee57353ea41a`, CI run `32562992913`, and the matching Railway marker, then replayed the same evaluation on the second request. The new UI and endpoint remain a local successor claim until deployed and invoked on the public domain.
 - Deployment-marker validation: the construction-bound collector performed one bounded unauthenticated GET against the live Railway marker, accepted repository `YongHwan2161/quietops` and full commit `1edbded139c0e7e8ec6e90e9d8f8ee57353ea41a`, and returned `Verified` with `externalMutations: 0`.
 - Hosting target: Railway is live in guarded `public-read-only` mode with one persistent volume, one replica in US West, a `/health` check, and the generated HTTPS domain `quietops-production.up.railway.app`.
@@ -106,7 +106,7 @@ npm run demo:github:ledger
 npm run demo:web
 ```
 
-`npm run demo:web` binds only to `http://127.0.0.1:4173` and stores its credential-free demo ledger at `.quietops/quietops.sqlite`. A new empty ledger is seeded once through the actual Ready/mismatch Strands path; restarting the server reuses the stored projections and decisions. The browser does not import fixture JSON or write SQLite directly.
+`npm run demo:web` binds only to `http://127.0.0.1:4173` and stores its credential-free demo ledger at `.quietops/quietops.sqlite`. A new empty ledger is seeded once with both the legacy Ready/mismatch evaluations and two immutable release-run histories: one quiet completion and one healthy delayed decision boundary. Restarting the server reuses the stored projections and decisions. The browser queries those ledger projections; it does not import fixture JSON, write SQLite directly, or start the showcased run.
 
 Set `QUIETOPS_DECISION_MODE=public-read-only` to exercise the fail-closed shared-demo view locally. The inbox and evidence remain visible, but the browser exposes no Reject/Re-check controls and the API returns `PUBLIC_DEMO_READ_ONLY` for otherwise valid decision writes. Omitting the setting keeps the existing `local-interactive` judge workflow.
 

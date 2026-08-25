@@ -262,7 +262,9 @@ documentation PR is reviewed and the user explicitly advances to the build.
       public pre-deployment probe found
       `/ready` `404` and a predecessor marker, and the available Railway CLI session
       is not authenticated to the owner-approved account, so no deployment mutation
-      was attempted.
+      was attempted. PR `#25` merged this slice as
+      `e1441678454c2ae0acbc47efb77d5c8a343e9ab0`; PR Verify run `32903883648`
+      and immutable-main Verify run `32903982765` both passed.
       HOLD/rollback: Stop independently at `HOLD_AWS_AUTH`, `HOLD_MERGE`,
       `HOLD_DEPLOY`, `HOLD_SECRET_INSTALL`, `HOLD_WEBHOOK_CREATE`, and
       `HOLD_WORKER_ENABLE` until each exact mutation is authorized. End this item at

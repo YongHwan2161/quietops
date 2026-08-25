@@ -35,8 +35,11 @@ be present before worker enable, but `QUIETOPS_GITHUB_ISSUE_ACTION_ENABLED`
 defaults false. While false, the escalation choice is disabled in the browser
 and rejected before decision persistence, so Item 10 cannot cause a GitHub write.
 
-These are source and local-test claims only until CI completes on the immutable
-commit. They do not prove a Railway deployment or an enabled production worker.
+PR `#25` merged this source as immutable `main` commit
+`e1441678454c2ae0acbc47efb77d5c8a343e9ab0`. PR Verify run `32903883648`
+(job `97983520892`) and post-merge Verify run `32903982765`
+(job `97983816668`) both passed. These receipts prove source/CI status, not a
+Railway deployment or an enabled production worker.
 
 At `2026-08-25T21:57:20Z`, the prebuilt production CLI was also exercised as a
 real local process. With the worker omitted, startup completed without any
@@ -67,6 +70,11 @@ against `https://quietops-production.up.railway.app` returned:
 The marker commit predates the current source head, so it is not valid evidence
 for the successor. No Railway setting, deployment, secret, webhook, worker, or
 provider resource was changed during this observation.
+
+The same four responses were observed again at `2026-08-25T22:01:22Z`, after
+the merge and post-merge CI had started. In particular, `/ready` remained `404`
+and the marker remained `8c4c7421aef135541bc16294b017daae5515aa33`, so the
+source merge did not constitute or prove a successor deployment.
 
 ## Gate
 

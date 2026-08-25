@@ -828,6 +828,17 @@ export class SQLiteReleaseRunLedger {
     return row.integrity_check;
   }
 
+  getMigrationVersion(): number {
+    this.#requireOpen();
+    const row = this.#database
+      .prepare("SELECT MAX(version) AS version FROM schema_migrations")
+      .get() as { readonly version?: unknown } | undefined;
+    if (!Number.isSafeInteger(row?.version) || Number(row?.version) < 0) {
+      throw new Error("SQLite migration version returned an invalid result.");
+    }
+    return Number(row?.version);
+  }
+
   close(): void {
     if (this.#closed) return;
     this.#database.close();

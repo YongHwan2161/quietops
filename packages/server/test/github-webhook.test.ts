@@ -46,6 +46,7 @@ test("keeps the route off by default, then persists and replays one authenticate
     databasePath,
     githubWebhook: {
       secret: SECRET,
+      policyProfile: "demo-v1",
       now: () => new Date("2026-08-23T14:30:00.000Z"),
     },
     logger: {
@@ -100,7 +101,7 @@ test("keeps the route off by default, then persists and replays one authenticate
 
   const reopened = await createQuietOpsServer({
     databasePath,
-    githubWebhook: { secret: SECRET },
+    githubWebhook: { secret: SECRET, policyProfile: "demo-v1" },
     logger: {
       level: "info",
       stream: { write: (message: string) => logs.push(message) },
@@ -121,10 +122,7 @@ test("keeps the route off by default, then persists and replays one authenticate
     assert.equal(releaseLedger.checkIntegrity(), "ok");
     assert.equal(releaseLedger.getRun(runId)?.candidateCommit, COMMIT);
     assert.equal(releaseLedger.getRun(runId)?.triggerDeliveryId, DELIVERY);
-    assert.equal(
-      releaseLedger.getRun(runId)?.policyProfile.name,
-      "standard-v1",
-    );
+    assert.equal(releaseLedger.getRun(runId)?.policyProfile.name, "demo-v1");
     assert.equal(releaseLedger.getHead(runId)?.state, "MONITORING");
     const events = releaseLedger.listEvents(runId);
     assert.equal(events.length, 1);

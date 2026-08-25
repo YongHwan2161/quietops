@@ -463,17 +463,22 @@ or tool name from the browser or model.
 New configuration is fail-closed:
 
 - `QUIETOPS_WORKER_ENABLED=true`
+- `QUIETOPS_SINGLE_REPLICA_CONFIRMED=true` only after external topology verification
 - `QUIETOPS_POLICY_PROFILE=demo-v1|standard-v1`
 - `QUIETOPS_GITHUB_WEBHOOK_ENABLED=true`
 - `QUIETOPS_GITHUB_WEBHOOK_SECRET=<secret>`
 - `QUIETOPS_OPERATOR_TOKEN=<secret>`
 - `QUIETOPS_GITHUB_ISSUE_TOKEN=<repo-scoped secret>`
+- `QUIETOPS_GITHUB_ISSUE_ACTION_ENABLED=false` until the separately authorized write gate
 - existing fixed host, database path, release commit, and public-mode settings
 
 Worker mode requires an absolute external SQLite path, operator authentication,
-all three secrets, and a verified single-replica deployment. The service refuses
-to start the worker if any value is absent. Secret values must never appear in
-startup JSON.
+all three secrets, an explicit policy profile, live Bedrock configuration, and a
+verified single-replica deployment. The service refuses to start the worker if
+any value is absent. Installing the issue token does not enable issue creation:
+the separate issue-action flag remains false through Item 10, and escalation
+requests fail before authorization persistence while it is false. Secret values
+must never appear in startup JSON.
 
 `GET /health` remains liveness-only. A new anonymous, non-sensitive `GET /ready`
 returns HTTP `200` with

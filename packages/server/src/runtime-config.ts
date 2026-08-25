@@ -1,5 +1,11 @@
 import { isAbsolute, relative, resolve, sep } from "node:path";
 
+import { normalizeGitHubIssueToken } from "@quietops/adapters";
+import {
+  POLICY_PROFILE_NAMES,
+  type PolicyProfileName,
+} from "@quietops/contracts";
+
 import type { DecisionMode } from "./server.js";
 import { normalizeOperatorToken } from "./operator-auth.js";
 
@@ -15,9 +21,14 @@ export interface QuietOpsRuntimeConfig {
   readonly decisionMode: DecisionMode;
   readonly databasePath: string;
   readonly releaseCommit?: string;
+  readonly workerEnabled: boolean;
+  readonly singleReplicaConfirmed: boolean;
+  readonly policyProfile: PolicyProfileName;
   readonly githubWebhookEnabled: boolean;
   readonly githubWebhookSecret?: string;
   readonly operatorToken?: string;
+  readonly githubIssueToken?: string;
+  readonly githubIssueActionEnabled: boolean;
 }
 
 export function resolveQuietOpsRuntimeConfig(
@@ -29,6 +40,18 @@ export function resolveQuietOpsRuntimeConfig(
   const port = parsePorts(environment.PORT, environment.QUIETOPS_PORT);
   const decisionMode = parseDecisionMode(environment.QUIETOPS_DECISION_MODE);
   const releaseCommit = parseReleaseCommit(environment.QUIETOPS_RELEASE_COMMIT);
+  const workerEnabled = parseBooleanFlag(
+    environment.QUIETOPS_WORKER_ENABLED,
+    "QUIETOPS_WORKER_ENABLED",
+  );
+  const singleReplicaConfirmed = parseBooleanFlag(
+    environment.QUIETOPS_SINGLE_REPLICA_CONFIRMED,
+    "QUIETOPS_SINGLE_REPLICA_CONFIRMED",
+  );
+  const policyProfile = parsePolicyProfile(
+    environment.QUIETOPS_POLICY_PROFILE,
+    workerEnabled,
+  );
   const githubWebhookEnabled = parseBooleanFlag(
     environment.QUIETOPS_GITHUB_WEBHOOK_ENABLED,
     "QUIETOPS_GITHUB_WEBHOOK_ENABLED",
@@ -41,6 +64,14 @@ export function resolveQuietOpsRuntimeConfig(
     environment.QUIETOPS_OPERATOR_TOKEN !== undefined
       ? normalizeOperatorToken(environment.QUIETOPS_OPERATOR_TOKEN)
       : undefined;
+  const githubIssueToken =
+    environment.QUIETOPS_GITHUB_ISSUE_TOKEN !== undefined
+      ? normalizeGitHubIssueToken(environment.QUIETOPS_GITHUB_ISSUE_TOKEN)
+      : undefined;
+  const githubIssueActionEnabled = parseBooleanFlag(
+    environment.QUIETOPS_GITHUB_ISSUE_ACTION_ENABLED,
+    "QUIETOPS_GITHUB_ISSUE_ACTION_ENABLED",
+  );
   const databasePath = parseDatabasePath(
     environment.QUIETOPS_DB_PATH,
     repositoryRoot,
@@ -57,17 +88,78 @@ export function resolveQuietOpsRuntimeConfig(
       "QUIETOPS_HOST=0.0.0.0 requires a full QUIETOPS_RELEASE_COMMIT.",
     );
   }
+  if (workerEnabled) {
+    if (
+      host !== "0.0.0.0" ||
+      decisionMode !== "public-read-only" ||
+      releaseCommit === undefined
+    ) {
+      throw new Error(
+        "QUIETOPS_WORKER_ENABLED=true requires the fixed public read-only runtime and release commit.",
+      );
+    }
+    if (!githubWebhookEnabled || !githubWebhookSecret) {
+      throw new Error(
+        "QUIETOPS_WORKER_ENABLED=true requires enabled signed GitHub webhook intake.",
+      );
+    }
+    if (!operatorToken) {
+      throw new Error(
+        "QUIETOPS_WORKER_ENABLED=true requires QUIETOPS_OPERATOR_TOKEN.",
+      );
+    }
+    if (!githubIssueToken) {
+      throw new Error(
+        "QUIETOPS_WORKER_ENABLED=true requires QUIETOPS_GITHUB_ISSUE_TOKEN to be installed even while issue action remains disabled.",
+      );
+    }
+    if (!singleReplicaConfirmed) {
+      throw new Error(
+        "QUIETOPS_WORKER_ENABLED=true requires QUIETOPS_SINGLE_REPLICA_CONFIRMED=true after external topology verification.",
+      );
+    }
+  }
+  if (githubIssueActionEnabled && !workerEnabled) {
+    throw new Error(
+      "QUIETOPS_GITHUB_ISSUE_ACTION_ENABLED=true requires QUIETOPS_WORKER_ENABLED=true.",
+    );
+  }
 
   return Object.freeze({
     host,
     port,
     decisionMode,
     databasePath,
+    workerEnabled,
+    singleReplicaConfirmed,
+    policyProfile,
     githubWebhookEnabled,
+    githubIssueActionEnabled,
     ...(releaseCommit ? { releaseCommit } : {}),
     ...(githubWebhookSecret ? { githubWebhookSecret } : {}),
     ...(operatorToken ? { operatorToken } : {}),
+    ...(githubIssueToken ? { githubIssueToken } : {}),
   });
+}
+
+function parsePolicyProfile(
+  value: string | undefined,
+  workerEnabled: boolean,
+): PolicyProfileName {
+  if (value === undefined) {
+    if (workerEnabled) {
+      throw new Error(
+        `QUIETOPS_WORKER_ENABLED=true requires QUIETOPS_POLICY_PROFILE=${POLICY_PROFILE_NAMES.join("|")}.`,
+      );
+    }
+    return "standard-v1";
+  }
+  if ((POLICY_PROFILE_NAMES as readonly string[]).includes(value)) {
+    return value as PolicyProfileName;
+  }
+  throw new Error(
+    `QUIETOPS_POLICY_PROFILE must be ${POLICY_PROFILE_NAMES.join(" or ")}.`,
+  );
 }
 
 function parseBooleanFlag(value: string | undefined, name: string): boolean {

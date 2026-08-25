@@ -24,7 +24,11 @@ test("defaults to the local interactive loopback runtime", () => {
     port: 4173,
     decisionMode: "local-interactive",
     databasePath: resolve(REPOSITORY_ROOT, ".quietops/quietops.sqlite"),
+    workerEnabled: false,
+    singleReplicaConfirmed: false,
+    policyProfile: "standard-v1",
     githubWebhookEnabled: false,
+    githubIssueActionEnabled: false,
   });
 });
 
@@ -42,7 +46,11 @@ test("accepts a public read-only platform binding", () => {
       port: 8080,
       decisionMode: "public-read-only",
       databasePath: PUBLIC_DATABASE_PATH,
+      workerEnabled: false,
+      singleReplicaConfirmed: false,
+      policyProfile: "standard-v1",
       githubWebhookEnabled: false,
+      githubIssueActionEnabled: false,
       releaseCommit: COMMIT,
     },
   );
@@ -173,7 +181,11 @@ test("keeps GitHub webhook intake default-off and requires a bounded secret", ()
       port: 4173,
       decisionMode: "local-interactive",
       databasePath: resolve(REPOSITORY_ROOT, ".quietops/quietops.sqlite"),
+      workerEnabled: false,
+      singleReplicaConfirmed: false,
+      policyProfile: "standard-v1",
       githubWebhookEnabled: true,
+      githubIssueActionEnabled: false,
       githubWebhookSecret: secret,
     },
   );
@@ -208,7 +220,11 @@ test("keeps operator authority default-off and validates only an injected high-e
     port: 4173,
     decisionMode: "local-interactive",
     databasePath: resolve(REPOSITORY_ROOT, ".quietops/quietops.sqlite"),
+    workerEnabled: false,
+    singleReplicaConfirmed: false,
+    policyProfile: "standard-v1",
     githubWebhookEnabled: false,
+    githubIssueActionEnabled: false,
     operatorToken,
   });
   for (const value of [
@@ -222,4 +238,73 @@ test("keeps operator authority default-off and validates only an injected high-e
       /Operator token must be 32-256 bytes/,
     );
   }
+});
+
+test("enables the worker only with the complete public fail-closed configuration", () => {
+  const secret = "quietops-runtime-webhook-secret-32-bytes-minimum";
+  const operatorToken = "quietops-runtime-operator-token-32-bytes-minimum";
+  const githubIssueToken = "github_issue_token_without_whitespace_123456";
+  const complete = {
+    QUIETOPS_HOST: "0.0.0.0",
+    QUIETOPS_DECISION_MODE: "public-read-only",
+    QUIETOPS_RELEASE_COMMIT: COMMIT,
+    QUIETOPS_DB_PATH: PUBLIC_DATABASE_PATH,
+    QUIETOPS_WORKER_ENABLED: "true",
+    QUIETOPS_SINGLE_REPLICA_CONFIRMED: "true",
+    QUIETOPS_POLICY_PROFILE: "demo-v1",
+    QUIETOPS_GITHUB_WEBHOOK_ENABLED: "true",
+    QUIETOPS_GITHUB_WEBHOOK_SECRET: secret,
+    QUIETOPS_OPERATOR_TOKEN: operatorToken,
+    QUIETOPS_GITHUB_ISSUE_TOKEN: githubIssueToken,
+  };
+  assert.deepEqual(resolveConfig(complete), {
+    host: "0.0.0.0",
+    port: 4173,
+    decisionMode: "public-read-only",
+    databasePath: PUBLIC_DATABASE_PATH,
+    workerEnabled: true,
+    singleReplicaConfirmed: true,
+    policyProfile: "demo-v1",
+    githubWebhookEnabled: true,
+    githubIssueActionEnabled: false,
+    releaseCommit: COMMIT,
+    githubWebhookSecret: secret,
+    operatorToken,
+    githubIssueToken,
+  });
+  assert.equal(
+    resolveConfig({
+      ...complete,
+      QUIETOPS_GITHUB_ISSUE_ACTION_ENABLED: "true",
+    }).githubIssueActionEnabled,
+    true,
+  );
+
+  for (const missing of [
+    "QUIETOPS_POLICY_PROFILE",
+    "QUIETOPS_SINGLE_REPLICA_CONFIRMED",
+    "QUIETOPS_GITHUB_WEBHOOK_ENABLED",
+    "QUIETOPS_GITHUB_WEBHOOK_SECRET",
+    "QUIETOPS_OPERATOR_TOKEN",
+    "QUIETOPS_GITHUB_ISSUE_TOKEN",
+  ] as const) {
+    assert.throws(() => {
+      const incomplete: Record<string, string | undefined> = { ...complete };
+      delete incomplete[missing];
+      resolveConfig(incomplete);
+    }, /requires|Enabled GitHub webhook intake/);
+  }
+
+  assert.throws(
+    () =>
+      resolveConfig({
+        QUIETOPS_GITHUB_ISSUE_ACTION_ENABLED: "true",
+        QUIETOPS_GITHUB_ISSUE_TOKEN: githubIssueToken,
+      }),
+    /requires QUIETOPS_WORKER_ENABLED=true/,
+  );
+  assert.throws(
+    () => resolveConfig({ QUIETOPS_POLICY_PROFILE: "unsafe-v1" }),
+    /QUIETOPS_POLICY_PROFILE must be/,
+  );
 });

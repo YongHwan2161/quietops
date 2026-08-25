@@ -187,7 +187,7 @@ test("authenticates the release owner, replays once, and rejects every stale or 
     assert.equal(stale.statusCode, 409);
     assert.equal(stale.json().error.code, "RELEASE_RUN_CONCURRENCY_CONFLICT");
 
-    const authorizedEscalation = await app.inject({
+    const disabledEscalation = await app.inject({
       method: "POST",
       url: `/api/decisions/${escalation.decisionId}`,
       headers: {
@@ -199,24 +199,20 @@ test("authenticates the release owner, replays once, and rejects every stale or 
         expectedRunVersion: escalation.expectedRunVersion,
       },
     });
-    assert.equal(authorizedEscalation.statusCode, 200);
-    const escalationBody = authorizedEscalation.json<{
-      receipt: {
-        choice: string;
-        actionId: string;
-        requestFingerprint: string;
-        nextWakeAt: null;
-        externalWriteAttempts: number;
-      };
-      run: { state: string; externalWriteAttempts: number };
-    }>();
-    assert.equal(escalationBody.receipt.choice, "ESCALATE_INCIDENT");
-    assert.match(escalationBody.receipt.actionId, /^github-incident:/);
-    assert.match(escalationBody.receipt.requestFingerprint, /^[0-9a-f]{64}$/);
-    assert.equal(escalationBody.receipt.nextWakeAt, null);
-    assert.equal(escalationBody.receipt.externalWriteAttempts, 0);
-    assert.equal(escalationBody.run.state, "RESUMING");
-    assert.equal(escalationBody.run.externalWriteAttempts, 0);
+    assert.equal(disabledEscalation.statusCode, 409);
+    assert.equal(
+      disabledEscalation.json().error.code,
+      "RELEASE_INCIDENT_ACTION_DISABLED",
+    );
+    const unchanged = new SQLiteReleaseRunLedger(databasePath);
+    try {
+      const head = unchanged.getHead(escalation.runId);
+      assert.equal(head?.state, "AWAITING_DECISION");
+      assert.equal(head?.version, escalation.expectedRunVersion);
+      assert.equal(unchanged.listEvents(escalation.runId).length, 3);
+    } finally {
+      unchanged.close();
+    }
 
     const expiredResponse = await app.inject({
       method: "POST",
@@ -257,21 +253,19 @@ test("authenticates the release owner, replays once, and rejects every stale or 
       1,
     );
     assert.equal(activeEvents.at(-1)?.payload.actor, "release-owner");
-    assert.equal(observer.getHead(escalation.runId)?.state, "RESUMING");
+    assert.equal(
+      observer.getHead(escalation.runId)?.state,
+      "AWAITING_DECISION",
+    );
     const escalationEvents = observer.listEvents(escalation.runId);
-    assert.deepEqual(
-      escalationEvents.slice(-2).map((event) => event.eventType),
-      ["decision-recorded", "action-reserved"],
-    );
-    const actionId = escalationEvents.at(-1)?.payload.actionId;
-    assert.equal(typeof actionId, "string");
+    assert.equal(escalationEvents.length, 3);
     assert.equal(
-      observer.getExternalAction(actionId as string)?.status,
-      "RESERVED",
-    );
-    assert.equal(
-      observer.getExternalAction(actionId as string)?.attemptCount,
-      0,
+      escalationEvents.some(
+        (event) =>
+          event.eventType === "decision-recorded" ||
+          event.eventType === "action-reserved",
+      ),
+      false,
     );
     assert.equal(observer.getHead(expired.runId)?.state, "AWAITING_DECISION");
     assert.equal(observer.checkIntegrity(), "ok");

@@ -91,6 +91,12 @@ export interface ReleaseRunWorkerShutdownResult {
   readonly claimedRunId: string | null;
 }
 
+export interface ReleaseRunWorkerReadiness {
+  readonly started: boolean;
+  readonly heartbeatFresh: boolean;
+  readonly lastHeartbeatAt: string | null;
+}
+
 export class ReleaseRunWorker {
   readonly #service: ReleaseRunService;
   readonly #workerId: string;
@@ -107,6 +113,7 @@ export class ReleaseRunWorker {
   #claimedRunId: string | null = null;
   #started = false;
   #stopping = false;
+  #lastHeartbeatAt: string | null = null;
 
   constructor(options: ReleaseRunWorkerOptions) {
     this.#service = options.service;
@@ -153,6 +160,7 @@ export class ReleaseRunWorker {
       return Object.freeze({ status: "stopping", runId: null });
     if (this.#inFlight) return Object.freeze({ status: "busy", runId: null });
 
+    this.#lastHeartbeatAt = this.#now();
     const operation = this.#executeOne();
     this.#inFlight = operation;
     try {
@@ -161,6 +169,24 @@ export class ReleaseRunWorker {
       if (this.#inFlight === operation) this.#inFlight = undefined;
       this.#claimedRunId = null;
     }
+  }
+
+  getReadiness(): Readonly<ReleaseRunWorkerReadiness> {
+    const heartbeatAt = this.#lastHeartbeatAt;
+    const ageMs = heartbeatAt
+      ? this.#clock().getTime() - Date.parse(heartbeatAt)
+      : Number.POSITIVE_INFINITY;
+    const heartbeatFresh =
+      this.#started &&
+      !this.#stopping &&
+      ageMs >= 0 &&
+      ageMs <=
+        Math.max(100, this.#pollIntervalMs * 3, this.#leaseDurationMs * 2);
+    return Object.freeze({
+      started: this.#started && !this.#stopping,
+      heartbeatFresh,
+      lastHeartbeatAt: heartbeatAt,
+    });
   }
 
   async stop(): Promise<Readonly<ReleaseRunWorkerShutdownResult>> {

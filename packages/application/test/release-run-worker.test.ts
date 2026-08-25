@@ -929,13 +929,26 @@ describe("durable release run worker", () => {
       },
     });
 
+    assert.deepEqual(worker.getReadiness(), {
+      started: false,
+      heartbeatFresh: false,
+      lastHeartbeatAt: null,
+    });
     assert.equal(worker.start(), true);
     assert.equal(worker.start(), false);
     await new Promise((resolve) => setTimeout(resolve, 20));
+    assert.equal(worker.getReadiness().started, true);
+    assert.equal(worker.getReadiness().heartbeatFresh, true);
+    assert.match(
+      worker.getReadiness().lastHeartbeatAt ?? "",
+      /^\d{4}-\d{2}-\d{2}T/,
+    );
     const shutdown = await worker.stop();
     assert.equal(shutdown.started, true);
     assert.equal(shutdown.drained, true);
     assert.equal(observationCalls, 0);
+    assert.equal(worker.getReadiness().started, false);
+    assert.equal(worker.getReadiness().heartbeatFresh, false);
     assert.deepEqual(await worker.tick(), { status: "stopping", runId: null });
     ledger.close();
   });

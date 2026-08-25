@@ -309,6 +309,9 @@ function renderDecision(run) {
     input.placeholder = "Used in memory for one POST only";
     const actions = element("div", "decision-actions");
     for (const choice of run.decision.choices) {
+      const incidentDisabled =
+        choice.choice === "ESCALATE_INCIDENT" &&
+        state.detailCapabilities?.incidentActionEnabled !== true;
       const button = element(
         "button",
         choice.choice === "ESCALATE_INCIDENT"
@@ -317,6 +320,10 @@ function renderDecision(run) {
         choiceButtonLabel(choice.choice),
       );
       button.type = "button";
+      button.disabled = incidentDisabled;
+      if (incidentDisabled) {
+        button.title = "Incident action is held disabled for this stage.";
+      }
       button.addEventListener(
         "click",
         () => void submitReleaseDecision(run, choice.choice, input),

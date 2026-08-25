@@ -244,6 +244,14 @@ documentation PR is reviewed and the user explicitly advances to the build.
       Railway service/deployment/replica/volume identities, webhook delivery ID, run
       IDs, decision ID, zero-effect counts, credential-presence boolean without secret
       material, timestamps, and rollback readiness.
+      Progress (2026-08-26 KST): The live Bedrock-backed fixture path passed with
+      `@strands-agents/sdk` `1.13.0`, active inference profile
+      `apac.amazon.nova-micro-v1:0`, three one-call read-only tool receipts,
+      deterministic `Needs decision`, process exit `0`, and `externalMutations: 0`.
+      Item 9 merged as `8b78a9085b770145ae4c4caf163734a1879ad7aa`; post-merge
+      Verify run `32901671266` passed. See
+      `LIVE_BEDROCK_STRANDS_VALIDATION_2026-08-26.md`. Item 10 remains unchecked
+      and stops at `HOLD_DEPLOY`.
       HOLD/rollback: Stop independently at `HOLD_AWS_AUTH`, `HOLD_MERGE`,
       `HOLD_DEPLOY`, `HOLD_SECRET_INSTALL`, `HOLD_WEBHOOK_CREATE`, and
       `HOLD_WORKER_ENABLE` until each exact mutation is authorized. End this item at

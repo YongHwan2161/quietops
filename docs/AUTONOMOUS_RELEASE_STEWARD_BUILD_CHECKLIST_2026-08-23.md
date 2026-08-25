@@ -251,7 +251,18 @@ documentation PR is reviewed and the user explicitly advances to the build.
       Item 9 merged as `8b78a9085b770145ae4c4caf163734a1879ad7aa`; post-merge
       Verify run `32901671266` passed. See
       `LIVE_BEDROCK_STRANDS_VALIDATION_2026-08-26.md`. Item 10 remains unchecked
-      and stops at `HOLD_DEPLOY`.
+      and stops at `HOLD_DEPLOY`. The fail-closed runtime readiness contract now
+      checks SQLite integrity, applied schema `2`, a fresh worker poll heartbeat,
+      and an explicit required-configuration attestation. Default-off returns
+      `/ready` `503` without changing `/health`; see
+      `RUNTIME_READINESS_GATE_2026-08-26.md`. The production CLI now has a
+      default-off, no-scripted-fallback Bedrock worker path with complete
+      configuration validation and a separate issue-action flag held false;
+      escalation is rejected before persistence while that flag is false. The
+      public pre-deployment probe found
+      `/ready` `404` and a predecessor marker, and the available Railway CLI session
+      is not authenticated to the owner-approved account, so no deployment mutation
+      was attempted.
       HOLD/rollback: Stop independently at `HOLD_AWS_AUTH`, `HOLD_MERGE`,
       `HOLD_DEPLOY`, `HOLD_SECRET_INSTALL`, `HOLD_WEBHOOK_CREATE`, and
       `HOLD_WORKER_ENABLE` until each exact mutation is authorized. End this item at

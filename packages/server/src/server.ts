@@ -25,11 +25,13 @@ import {
   ContractValidationError,
   resolvePolicyProfile,
   type DecisionChoice,
+  type PolicyProfileName,
 } from "@quietops/contracts";
 import {
   IdempotencyConflictError,
   ReleaseRunConcurrencyError,
   ReleaseRunStateError,
+  SQLITE_SCHEMA_VERSION,
   SQLiteEvaluationLedger,
   SQLiteReleaseRunLedger,
 } from "@quietops/storage";
@@ -103,6 +105,7 @@ interface ReleaseDecisionBody {
 
 export interface GitHubWebhookServerOptions {
   readonly secret: string;
+  readonly policyProfile?: PolicyProfileName;
   readonly now?: () => Date;
 }
 
@@ -121,6 +124,7 @@ export interface CreateQuietOpsServerOptions {
   readonly githubWebhook?: GitHubWebhookServerOptions;
   readonly releaseWorker?: ReleaseWorkerServerOptions;
   readonly releaseDecision?: ReleaseDecisionServerOptions;
+  readonly readinessConfigurationPassed?: boolean;
 }
 
 export interface ReleaseWorkerServerOptions extends Omit<
@@ -163,6 +167,8 @@ export async function createQuietOpsServer(
           app.log.error({ err: error }, "Release worker tick failed"),
         )
       : undefined;
+  const incidentActionEnabled =
+    options.releaseWorker?.runIncidentAction !== undefined;
 
   app.addHook("onReady", () => {
     releaseWorker?.start();
@@ -286,6 +292,28 @@ export async function createQuietOpsServer(
 
   app.get("/health", async () => ({ status: "ok" }));
 
+  app.get("/ready", async (_request, reply) => {
+    let database = false;
+    let migrationVersion = 0;
+    try {
+      database = releaseRunLedger.checkIntegrity() === "ok";
+      migrationVersion = releaseRunLedger.getMigrationVersion();
+    } catch {
+      database = false;
+    }
+    const worker =
+      options.readinessConfigurationPassed === true &&
+      (releaseWorker?.getReadiness().heartbeatFresh ?? false);
+    const ready =
+      database && migrationVersion === SQLITE_SCHEMA_VERSION && worker;
+    return reply.code(ready ? 200 : 503).send({
+      status: ready ? "ready" : "not-ready",
+      database,
+      worker,
+      migrationVersion,
+    });
+  });
+
   if (releaseCommit) {
     app.get(RELEASE_MARKER_PATH, async () => ({
       schemaVersion: "1",
@@ -345,7 +373,9 @@ export async function createQuietOpsServer(
           const result = releaseRunService.createFromTrigger({
             candidateCommit: inspection.candidateCommit,
             deliveryId: inspection.deliveryId,
-            policyProfile: resolvePolicyProfile("standard-v1"),
+            policyProfile: resolvePolicyProfile(
+              githubWebhook.policyProfile ?? "standard-v1",
+            ),
             occurredAt: (githubWebhook.now?.() ?? new Date()).toISOString(),
           });
           return reply.code(202).send({
@@ -389,6 +419,18 @@ export async function createQuietOpsServer(
         const occurredAt = (
           releaseDecision.now?.() ?? new Date()
         ).toISOString();
+        if (
+          request.body.choice === "ESCALATE_INCIDENT" &&
+          !incidentActionEnabled
+        ) {
+          sendError(
+            reply,
+            409,
+            "RELEASE_INCIDENT_ACTION_DISABLED",
+            "The incident action capability is held disabled.",
+          );
+          return;
+        }
         const result = releaseRunService.submitDecision({
           decisionId: request.params.decisionId,
           submission: request.body,
@@ -410,6 +452,7 @@ export async function createQuietOpsServer(
       operatorDecision: Object.freeze({
         enabled: releaseDecision !== undefined,
         authorityStorage: "memory-only",
+        incidentActionEnabled,
       }),
     }),
     items: releaseRunService.listPublicRuns(),
@@ -428,6 +471,7 @@ export async function createQuietOpsServer(
             releaseDecision !== undefined &&
             run.evidenceMode === "live" &&
             run.attentionRequired,
+          incidentActionEnabled,
         }),
         run,
       };
@@ -583,6 +627,7 @@ function normalizeGitHubWebhook(
   }
   return Object.freeze({
     secret: value.secret,
+    ...(value.policyProfile ? { policyProfile: value.policyProfile } : {}),
     ...(value.now ? { now: value.now } : {}),
   });
 }

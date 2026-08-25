@@ -31,6 +31,19 @@ test("serves one persisted Ready and mismatch workflow over HTTP", async () => {
     assert.deepEqual(healthResponse.json(), { status: "ok" });
     assert.equal(healthResponse.headers["cache-control"], "no-store");
 
+    const readinessResponse = await app.inject({
+      method: "GET",
+      url: "/ready",
+    });
+    assert.equal(readinessResponse.statusCode, 503);
+    assert.deepEqual(readinessResponse.json(), {
+      status: "not-ready",
+      database: true,
+      worker: false,
+      migrationVersion: 2,
+    });
+    assert.doesNotMatch(readinessResponse.body, /sqlite|token|secret|path/i);
+
     const inbox = inboxResponse.json<{
       capabilities: { decisionMode: string };
       items: Array<{
@@ -83,6 +96,8 @@ test("serves one persisted Ready and mismatch workflow over HTTP", async () => {
     assert.match(browserScript.body, /\/api\/decisions\//);
     assert.match(browserScript.body, /input\.type = "password"/);
     assert.match(browserScript.body, /pollIntervalMs/);
+    assert.match(browserScript.body, /incidentActionEnabled/);
+    assert.match(browserScript.body, /button\.disabled = incidentDisabled/);
     assert.doesNotMatch(browserScript.body, /localStorage|sessionStorage/);
     assert.doesNotMatch(
       browserScript.body,
@@ -91,6 +106,68 @@ test("serves one persisted Ready and mismatch workflow over HTTP", async () => {
   } finally {
     await app.close();
     await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("reports ready only after the configured worker emits a fresh heartbeat", async () => {
+  const app = await createQuietOpsServer({
+    readinessConfigurationPassed: true,
+    releaseWorker: {
+      workerId: "server:readiness-test",
+      runObservation: async () => {
+        throw new Error("No release run should be observed in this test.");
+      },
+      pollIntervalMs: 5,
+    },
+  });
+
+  try {
+    let response = await app.inject({ method: "GET", url: "/ready" });
+    for (
+      let attempt = 0;
+      response.statusCode !== 200 && attempt < 20;
+      attempt += 1
+    ) {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      response = await app.inject({ method: "GET", url: "/ready" });
+    }
+    assert.equal(response.statusCode, 200);
+    assert.deepEqual(response.json(), {
+      status: "ready",
+      database: true,
+      worker: true,
+      migrationVersion: 2,
+    });
+    assert.doesNotMatch(response.body, /sqlite|token|secret|path/i);
+  } finally {
+    await app.close();
+  }
+});
+
+test("stays not ready when a live worker lacks runtime configuration attestation", async () => {
+  const app = await createQuietOpsServer({
+    releaseWorker: {
+      workerId: "server:unattested-readiness-test",
+      runObservation: async () => {
+        throw new Error("No release run should be observed in this test.");
+      },
+      pollIntervalMs: 5,
+    },
+  });
+
+  try {
+    await app.ready();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    const response = await app.inject({ method: "GET", url: "/ready" });
+    assert.equal(response.statusCode, 503);
+    assert.deepEqual(response.json(), {
+      status: "not-ready",
+      database: true,
+      worker: false,
+      migrationVersion: 2,
+    });
+  } finally {
+    await app.close();
   }
 });
 

@@ -31,6 +31,7 @@ test("creates the exact ordered v2 schema on a fresh database", () => {
   const ledger = new SQLiteReleaseRunLedger(fixture.path);
   try {
     assert.equal(ledger.checkIntegrity(), "ok");
+    assert.equal(ledger.getMigrationVersion(), 2);
   } finally {
     ledger.close();
   }

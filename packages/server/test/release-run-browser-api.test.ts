@@ -27,7 +27,11 @@ test("projects preserved release histories as an exception-first public inbox", 
     const payload = response.json<{
       capabilities: {
         pollIntervalMs: number;
-        operatorDecision: { enabled: boolean; authorityStorage: string };
+        operatorDecision: {
+          enabled: boolean;
+          authorityStorage: string;
+          incidentActionEnabled: boolean;
+        };
       };
       items: Array<{
         runId: string;
@@ -45,6 +49,7 @@ test("projects preserved release histories as an exception-first public inbox", 
     assert.deepEqual(payload.capabilities.operatorDecision, {
       enabled: false,
       authorityStorage: "memory-only",
+      incidentActionEnabled: false,
     });
     assert.equal(payload.items.length, 2);
     assert.deepEqual(

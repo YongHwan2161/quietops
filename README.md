@@ -15,7 +15,8 @@ an incident. It then resumes the same run and proves the bounded result.
 > wait/restart recovery, one expiring decision envelope, and authenticated same-run
 > resume for both decisions. Its fixed-target incident path reserves an immutable
 > request before one injected provider attempt and stops safely on ambiguous
-> outcomes. Live AWS validation and successor deployment remain separate gates.
+> outcomes. The live Bedrock-backed fixture path is now verified; successor
+> deployment remains a separate gate.
 
 ## The core idea
 
@@ -65,6 +66,7 @@ The following is the approved P0 target, not the current public implementation:
 - [Autonomous Release Steward technical specification](docs/AUTONOMOUS_RELEASE_STEWARD_TECHNICAL_SPEC_2026-08-23.md)
 - [Autonomous Release Steward build checklist](docs/AUTONOMOUS_RELEASE_STEWARD_BUILD_CHECKLIST_2026-08-23.md)
 - [Exception-first browser verification](docs/EXCEPTION_FIRST_BROWSER_2026-08-24.md)
+- [Live Bedrock-backed Strands validation](docs/LIVE_BEDROCK_STRANDS_VALIDATION_2026-08-26.md)
 - [Hosting-target decision and external gate](docs/HOSTING_TARGET_DECISION_2026-08-22.md)
 - [Stage 4C-1a public-demo decision boundary](docs/PUBLIC_DEMO_DECISION_BOUNDARY_2026-08-22.md)
 - [Stage 4C-1b host, port, and health boundary](docs/HOST_PORT_HEALTH_BOUNDARY_2026-08-22.md)
@@ -79,14 +81,14 @@ The following is the approved P0 target, not the current public implementation:
 
 ## Current status
 
-- Active product direction: Autonomous Release Steward checklist Items 1–9 are implemented locally; Item 10's live Bedrock, deployment, webhook, and credential-install gates are the next HOLD
+- Active product direction: Autonomous Release Steward checklist Items 1–9 are merged to `main`; Item 10's live Bedrock gate passed, while deployment, webhook, worker, and credential-install gates remain on HOLD
 - Current implementation baseline: the default-off successor accepts a signed fixed-target push, runs bounded Strands observations in a durable worker, quietly completes a converged release, persists policy waits before sleeping, recovers the same run after restart, requests one expiring decision only after the healthy delayed path exhausts its normal observation budget, and resumes that same run for either one authorized extension or one reserved incident attempt
 - Implementation: candidate identity, bounded Ready/mismatch Strands paths, a three-tool live source/CI/deployment path, deterministic policy, an append-only SQLite ledger, per-release idempotent replay, human-decision lineage for preserved mismatch cases, inbox/detail projections, and provider receipt links
 - Browser and API: the guarded Fastify server defaults to loopback and now leads with attention-ranked release runs rather than a manual verifier. `GET /api/release-runs` and `GET /api/release-runs/:runId` expose persisted observations, waits, prompts, writes, the one human question, consequences, same-run result, and expandable receipts. Preserved demonstrations are visibly labeled, excluded from worker claims, and cannot accept a decision. Live decisions use one in-memory password input for `POST /api/decisions/:decisionId`; the server derives the `release-owner` actor, rejects stale/expired/foreign/conflicting or repeated decisions, and never accepts authority from the browser body. The legacy inbox/detail/live-verification routes remain compatible. No live issue credential is installed and no arbitrary repository or URL input is accepted.
 - Live integration status: the complete GitHub source → required CI → Railway marker → policy → SQLite path passes both injected tests and one actual provider-backed local browser journey. It returned `Ready` for predecessor commit `1edbded139c0e7e8ec6e90e9d8f8ee57353ea41a`, CI run `32562992913`, and the matching Railway marker, then replayed the same evaluation on the second request. The new UI and endpoint remain a local successor claim until deployed and invoked on the public domain.
 - Deployment-marker validation: the construction-bound collector performed one bounded unauthenticated GET against the live Railway marker, accepted repository `YongHwan2161/quietops` and full commit `1edbded139c0e7e8ec6e90e9d8f8ee57353ea41a`, and returned `Verified` with `externalMutations: 0`.
 - Hosting target: Railway is live in guarded `public-read-only` mode with one persistent volume, one replica in US West, a `/health` check, and the generated HTTPS domain `quietops-production.up.railway.app`.
-- Live AWS/Bedrock validation: not performed for this repository
+- Live AWS/Bedrock validation: one bounded `bedrock-live` Strands run passed with the active APAC Nova Micro inference profile, three allowlisted fixture-backed tool calls, deterministic `Needs decision`, and `externalMutations: 0`; see the [dated receipt](docs/LIVE_BEDROCK_STRANDS_VALIDATION_2026-08-26.md)
 - Deployment: Railway deployment `e2e92c17-3c8f-4196-9517-479a2ec633e1` is active for commit `1edbded139c0e7e8ec6e90e9d8f8ee57353ea41a`; `GET /health` and the strict release marker returned HTTP `200` on 2026-08-23 KST.
 - Devpost project submission: not performed from this repository
 
@@ -128,7 +130,7 @@ An explicit live Bedrock command is also available:
 AWS_REGION=us-west-2 QUIETOPS_MODEL_ID=your-enabled-model-id npm run demo:mismatch:bedrock
 ```
 
-The command uses the AWS SDK default credential chain without reading or printing credential values. It fails closed with `AWS_REGION_OR_QUIETOPS_MODEL_ID_MISSING` before model construction if either named setting is empty. Both model paths share a strict allowlist and a one-call-per-tool, three-call-total budget; deterministic policy remains authoritative. This repository has not executed or verified the live command.
+The command uses the AWS SDK default credential chain without reading or printing credential values. It fails closed with `AWS_REGION_OR_QUIETOPS_MODEL_ID_MISSING` before model construction if either named setting is empty. Both model paths share a strict allowlist and a one-call-per-tool, three-call-total budget; deterministic policy remains authoritative. One live fixture-backed run passed on 2026-08-25 KST using `apac.amazon.nova-micro-v1:0`. That receipt validates Bedrock-backed Strands execution, not live GitHub or Railway observation; see [Live Bedrock-backed Strands validation](docs/LIVE_BEDROCK_STRANDS_VALIDATION_2026-08-26.md).
 
 The ledger and browser demos run the same credential-free Strands scenarios through one application service. They persist completed evaluation and evidence events to an append-only SQLite ledger, rank the unresolved mismatch first, record one bounded human decision, and prove that retrying the same idempotency key returns the original receipt without appending another event. A re-check creates a child evaluation linked to its preserved parent. These local paths perform zero external mutations and are not deployment or live-provider proof.
 

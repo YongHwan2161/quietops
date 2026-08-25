@@ -2,7 +2,7 @@
 
 ## Repository phase
 
-This public repository contains a TypeScript contract kernel, bounded Strands agent paths, an append-only SQLite application spine, a guarded Fastify/browser workflow, fixed public-GitHub source/CI collection, and a construction-bound Railway deployment-marker collector. The Stage 4B-3 successor composes those three evidence tools into one user-started live verification, preserves provider receipts, applies deterministic policy, and replays one evaluation per configured deployment commit. That successor is locally verified but is not claimed as publicly available until its CI, merge, Railway deployment, and public-browser checks pass. Preserved mismatch examples are synthetic; browser-behavior collection, live AWS/Bedrock, and AgentCore remain unverified.
+This public repository contains a TypeScript contract kernel, bounded Strands agent paths, an append-only SQLite application spine, a guarded Fastify/browser workflow, fixed public-GitHub source/CI collection, and a construction-bound Railway deployment-marker collector. The Stage 4B-3 successor composes those three evidence tools into one user-started live verification, preserves provider receipts, applies deterministic policy, and replays one evaluation per configured deployment commit. The exception-first browser is merged and locally verified, and one fixture-backed live AWS/Bedrock Strands path has passed. The successor is not claimed as publicly available until its Railway deployment and public-browser checks pass. Preserved mismatch examples remain synthetic; live webhook-triggered successor execution, production credentials, the enabled worker, a real incident action, and AgentCore remain unverified.
 
 ## AI assistance
 

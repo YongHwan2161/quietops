@@ -39,7 +39,10 @@ export function resolveQuietOpsRuntimeConfig(
   const host = parseHost(environment.QUIETOPS_HOST);
   const port = parsePorts(environment.PORT, environment.QUIETOPS_PORT);
   const decisionMode = parseDecisionMode(environment.QUIETOPS_DECISION_MODE);
-  const releaseCommit = parseReleaseCommit(environment.QUIETOPS_RELEASE_COMMIT);
+  const releaseCommit = resolveReleaseCommit(
+    environment.QUIETOPS_RELEASE_COMMIT,
+    environment.RAILWAY_GIT_COMMIT_SHA,
+  );
   const workerEnabled = parseBooleanFlag(
     environment.QUIETOPS_WORKER_ENABLED,
     "QUIETOPS_WORKER_ENABLED",
@@ -85,7 +88,7 @@ export function resolveQuietOpsRuntimeConfig(
   }
   if (host === "0.0.0.0" && releaseCommit === undefined) {
     throw new Error(
-      "QUIETOPS_HOST=0.0.0.0 requires a full QUIETOPS_RELEASE_COMMIT.",
+      "QUIETOPS_HOST=0.0.0.0 requires a full QUIETOPS_RELEASE_COMMIT or RAILWAY_GIT_COMMIT_SHA.",
     );
   }
   if (workerEnabled) {
@@ -234,12 +237,37 @@ function parseDecisionMode(value: string | undefined): DecisionMode {
   );
 }
 
-function parseReleaseCommit(value: string | undefined): string | undefined {
+function resolveReleaseCommit(
+  configuredValue: string | undefined,
+  railwayValue: string | undefined,
+): string | undefined {
+  const configuredCommit = parseReleaseCommit(
+    configuredValue,
+    "QUIETOPS_RELEASE_COMMIT",
+  );
+  const railwayCommit = parseReleaseCommit(
+    railwayValue,
+    "RAILWAY_GIT_COMMIT_SHA",
+  );
+  if (
+    configuredCommit !== undefined &&
+    railwayCommit !== undefined &&
+    configuredCommit !== railwayCommit
+  ) {
+    throw new Error(
+      "QUIETOPS_RELEASE_COMMIT must match RAILWAY_GIT_COMMIT_SHA when both are set.",
+    );
+  }
+  return railwayCommit ?? configuredCommit;
+}
+
+function parseReleaseCommit(
+  value: string | undefined,
+  name: "QUIETOPS_RELEASE_COMMIT" | "RAILWAY_GIT_COMMIT_SHA",
+): string | undefined {
   if (value === undefined) return undefined;
   if (!/^[0-9a-f]{40}$/.test(value)) {
-    throw new Error(
-      "QUIETOPS_RELEASE_COMMIT must be 40 lowercase hexadecimal characters.",
-    );
+    throw new Error(`${name} must be 40 lowercase hexadecimal characters.`);
   }
   return value;
 }

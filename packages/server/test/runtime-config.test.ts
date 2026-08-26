@@ -6,6 +6,7 @@ import test from "node:test";
 import { resolveQuietOpsRuntimeConfig } from "../src/index.js";
 
 const COMMIT = "924686c12afbcd437466fd56d0ea24be8df36696";
+const OTHER_COMMIT = "124686c12afbcd437466fd56d0ea24be8df36696";
 const REPOSITORY_ROOT = resolve("quietops-runtime-test-repository");
 const PUBLIC_DATABASE_PATH = resolve(
   tmpdir(),
@@ -56,6 +57,51 @@ test("accepts a public read-only platform binding", () => {
   );
 });
 
+test("uses the Railway deployment commit as the public release identity", () => {
+  assert.deepEqual(
+    resolveConfig({
+      QUIETOPS_HOST: "0.0.0.0",
+      PORT: "8080",
+      QUIETOPS_DECISION_MODE: "public-read-only",
+      RAILWAY_GIT_COMMIT_SHA: COMMIT,
+      QUIETOPS_DB_PATH: PUBLIC_DATABASE_PATH,
+    }),
+    {
+      host: "0.0.0.0",
+      port: 8080,
+      decisionMode: "public-read-only",
+      databasePath: PUBLIC_DATABASE_PATH,
+      workerEnabled: false,
+      singleReplicaConfirmed: false,
+      policyProfile: "standard-v1",
+      githubWebhookEnabled: false,
+      githubIssueActionEnabled: false,
+      releaseCommit: COMMIT,
+    },
+  );
+});
+
+test("accepts matching configured and Railway release identities", () => {
+  assert.equal(
+    resolveConfig({
+      QUIETOPS_RELEASE_COMMIT: COMMIT,
+      RAILWAY_GIT_COMMIT_SHA: COMMIT,
+    }).releaseCommit,
+    COMMIT,
+  );
+});
+
+test("rejects a configured release identity that disagrees with Railway", () => {
+  assert.throws(
+    () =>
+      resolveConfig({
+        QUIETOPS_RELEASE_COMMIT: OTHER_COMMIT,
+        RAILWAY_GIT_COMMIT_SHA: COMMIT,
+      }),
+    /QUIETOPS_RELEASE_COMMIT must match RAILWAY_GIT_COMMIT_SHA/,
+  );
+});
+
 test("keeps the local port alias and accepts matching dual configuration", () => {
   assert.equal(resolveConfig({ QUIETOPS_PORT: "4317" }).port, 4317);
   assert.equal(
@@ -100,7 +146,7 @@ test("rejects non-allowlisted hosts and an interactive public bind", () => {
         QUIETOPS_DECISION_MODE: "public-read-only",
         QUIETOPS_DB_PATH: PUBLIC_DATABASE_PATH,
       }),
-    /requires a full QUIETOPS_RELEASE_COMMIT/,
+    /requires a full QUIETOPS_RELEASE_COMMIT or RAILWAY_GIT_COMMIT_SHA/,
   );
 });
 
@@ -165,6 +211,20 @@ test("rejects an unknown decision mode or invalid release commit", () => {
           QUIETOPS_RELEASE_COMMIT: releaseCommit,
         }),
       /QUIETOPS_RELEASE_COMMIT must be 40 lowercase hexadecimal characters/,
+    );
+  }
+  for (const releaseCommit of [
+    "",
+    "short",
+    COMMIT.toUpperCase(),
+    `${COMMIT}0`,
+  ]) {
+    assert.throws(
+      () =>
+        resolveConfig({
+          RAILWAY_GIT_COMMIT_SHA: releaseCommit,
+        }),
+      /RAILWAY_GIT_COMMIT_SHA must be 40 lowercase hexadecimal characters/,
     );
   }
 });

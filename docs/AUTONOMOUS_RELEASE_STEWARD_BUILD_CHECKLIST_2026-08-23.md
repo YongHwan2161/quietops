@@ -264,7 +264,16 @@ documentation PR is reviewed and the user explicitly advances to the build.
       is not authenticated to the owner-approved account, so no deployment mutation
       was attempted. PR `#25` merged this slice as
       `e1441678454c2ae0acbc47efb77d5c8a343e9ab0`; PR Verify run `32903883648`
-      and immutable-main Verify run `32903982765` both passed.
+      and immutable-main Verify run `32903982765` both passed. The owner-approved
+      account was subsequently authenticated. A same-service release-commit
+      reference resolved empty, deployment
+      `3fef845e-04df-4033-b917-cc72164faf08` failed before listening, and the
+      exact prior marker value was restored. Rollback deployment
+      `888e9a15-e847-431c-a965-f14eb23777d3` became the sole active `SUCCESS`
+      deployment with `/health` `200`, fail-closed `/ready` `503`, and both read
+      APIs recovered. The restored marker is still the predecessor SHA, so the
+      current gate is `HOLD_RELEASE_IDENTITY_CUTOVER`; see the runtime readiness
+      receipt for the no-variable-predelete successor order.
       HOLD/rollback: Stop independently at `HOLD_AWS_AUTH`, `HOLD_MERGE`,
       `HOLD_DEPLOY`, `HOLD_SECRET_INSTALL`, `HOLD_WEBHOOK_CREATE`, and
       `HOLD_WORKER_ENABLE` until each exact mutation is authorized. End this item at

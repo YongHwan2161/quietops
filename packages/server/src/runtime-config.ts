@@ -241,6 +241,8 @@ function resolveReleaseCommit(
   configuredValue: string | undefined,
   railwayValue: string | undefined,
 ): string | undefined {
+  // Railway's deployment SHA is the platform-attested identity. Keep the
+  // explicit setting as a validated fallback for non-Railway runtimes only.
   const configuredCommit = parseReleaseCommit(
     configuredValue,
     "QUIETOPS_RELEASE_COMMIT",
@@ -249,15 +251,6 @@ function resolveReleaseCommit(
     railwayValue,
     "RAILWAY_GIT_COMMIT_SHA",
   );
-  if (
-    configuredCommit !== undefined &&
-    railwayCommit !== undefined &&
-    configuredCommit !== railwayCommit
-  ) {
-    throw new Error(
-      "QUIETOPS_RELEASE_COMMIT must match RAILWAY_GIT_COMMIT_SHA when both are set.",
-    );
-  }
   return railwayCommit ?? configuredCommit;
 }
 

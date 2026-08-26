@@ -91,14 +91,13 @@ test("accepts matching configured and Railway release identities", () => {
   );
 });
 
-test("rejects a configured release identity that disagrees with Railway", () => {
-  assert.throws(
-    () =>
-      resolveConfig({
-        QUIETOPS_RELEASE_COMMIT: OTHER_COMMIT,
-        RAILWAY_GIT_COMMIT_SHA: COMMIT,
-      }),
-    /QUIETOPS_RELEASE_COMMIT must match RAILWAY_GIT_COMMIT_SHA/,
+test("keeps the Railway deployment identity authoritative over a stale configured fallback", () => {
+  assert.equal(
+    resolveConfig({
+      QUIETOPS_RELEASE_COMMIT: OTHER_COMMIT,
+      RAILWAY_GIT_COMMIT_SHA: COMMIT,
+    }).releaseCommit,
+    COMMIT,
   );
 });
 

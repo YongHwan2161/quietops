@@ -25,6 +25,7 @@ test("defaults to the local interactive loopback runtime", () => {
     port: 4173,
     decisionMode: "local-interactive",
     databasePath: resolve(REPOSITORY_ROOT, ".quietops/quietops.sqlite"),
+    publicLiveProofEnabled: false,
     workerEnabled: false,
     singleReplicaConfirmed: false,
     policyProfile: "standard-v1",
@@ -47,6 +48,7 @@ test("accepts a public read-only platform binding", () => {
       port: 8080,
       decisionMode: "public-read-only",
       databasePath: PUBLIC_DATABASE_PATH,
+      publicLiveProofEnabled: false,
       workerEnabled: false,
       singleReplicaConfirmed: false,
       policyProfile: "standard-v1",
@@ -71,6 +73,7 @@ test("uses the Railway deployment commit as the public release identity", () => 
       port: 8080,
       decisionMode: "public-read-only",
       databasePath: PUBLIC_DATABASE_PATH,
+      publicLiveProofEnabled: false,
       workerEnabled: false,
       singleReplicaConfirmed: false,
       policyProfile: "standard-v1",
@@ -79,6 +82,31 @@ test("uses the Railway deployment commit as the public release identity", () => 
       releaseCommit: COMMIT,
     },
   );
+});
+
+test("keeps public Bedrock proof default-off and gates explicit enablement", () => {
+  const enabled = resolveConfig({
+    QUIETOPS_HOST: "0.0.0.0",
+    QUIETOPS_DECISION_MODE: "public-read-only",
+    QUIETOPS_RELEASE_COMMIT: COMMIT,
+    QUIETOPS_DB_PATH: PUBLIC_DATABASE_PATH,
+    QUIETOPS_PUBLIC_LIVE_PROOF_ENABLED: "true",
+  });
+  assert.equal(enabled.publicLiveProofEnabled, true);
+
+  assert.throws(
+    () =>
+      resolveConfig({
+        QUIETOPS_PUBLIC_LIVE_PROOF_ENABLED: "true",
+      }),
+    /requires the fixed public read-only runtime and release commit/,
+  );
+  for (const value of ["TRUE", "1", "yes", ""]) {
+    assert.throws(
+      () => resolveConfig({ QUIETOPS_PUBLIC_LIVE_PROOF_ENABLED: value }),
+      /QUIETOPS_PUBLIC_LIVE_PROOF_ENABLED must be true or false/,
+    );
+  }
 });
 
 test("accepts matching configured and Railway release identities", () => {
@@ -240,6 +268,7 @@ test("keeps GitHub webhook intake default-off and requires a bounded secret", ()
       port: 4173,
       decisionMode: "local-interactive",
       databasePath: resolve(REPOSITORY_ROOT, ".quietops/quietops.sqlite"),
+      publicLiveProofEnabled: false,
       workerEnabled: false,
       singleReplicaConfirmed: false,
       policyProfile: "standard-v1",
@@ -279,6 +308,7 @@ test("keeps operator authority default-off and validates only an injected high-e
     port: 4173,
     decisionMode: "local-interactive",
     databasePath: resolve(REPOSITORY_ROOT, ".quietops/quietops.sqlite"),
+    publicLiveProofEnabled: false,
     workerEnabled: false,
     singleReplicaConfirmed: false,
     policyProfile: "standard-v1",
@@ -321,6 +351,7 @@ test("enables the worker only with the complete public fail-closed configuration
     port: 4173,
     decisionMode: "public-read-only",
     databasePath: PUBLIC_DATABASE_PATH,
+    publicLiveProofEnabled: false,
     workerEnabled: true,
     singleReplicaConfirmed: true,
     policyProfile: "demo-v1",

@@ -130,7 +130,7 @@ The accepted marker schema is exactly `{ schemaVersion: "1", repository: "YongHw
 
 Stage 4B-3 composes the shared GitHub source/CI collection and the construction-bound Railway marker behind exactly three Strands tools and a three-call budget. The browser cannot pass a target. The agent records observations and narration; `evaluateReleaseMismatch` remains the only authority for the outcome.
 
-`POST /api/live-verifications` exists only as a fixed-target action. When an exact server release commit is configured, it becomes the internal idempotency key for the live run. The application coalesces concurrent requests, commits the evaluation and provider receipts atomically, and replays the stored evaluation for repeated requests to the same deployed commit. Public decision writes remain blocked.
+`POST /api/live-verifications` exists only as a fixed-target action. An exact server release commit becomes the internal idempotency key, but identity alone no longer enables execution. The production CLI must also receive `QUIETOPS_PUBLIC_LIVE_PROOF_ENABLED=true`, construct an explicit Bedrock model, and inject a runner that returns `bedrock-live`; scripted execution is available only through the explicit `injected-test` mode. The application coalesces concurrent requests, commits the evaluation and provider receipts atomically, and replays the stored evaluation for repeated requests to the same deployed commit. Public decision writes remain blocked.
 
 ## Planned modules
 

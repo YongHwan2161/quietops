@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 
 import {
   createBedrockMismatchModel,
+  runLiveReleaseVerification,
   runReleaseStewardIncidentAction,
   runReleaseStewardObservation,
 } from "@quietops/agent";
@@ -22,6 +23,7 @@ const {
   decisionMode,
   databasePath,
   releaseCommit,
+  publicLiveProofEnabled,
   workerEnabled,
   singleReplicaConfirmed,
   policyProfile,
@@ -34,7 +36,10 @@ const {
 
 await mkdir(dirname(databasePath), { recursive: true });
 
-const bedrockModel = workerEnabled
+const workerBedrockModel = workerEnabled
+  ? createBedrockMismatchModel(process.env)
+  : undefined;
+const publicLiveProofModel = publicLiveProofEnabled
   ? createBedrockMismatchModel(process.env)
   : undefined;
 const releaseWorker: ReleaseWorkerServerOptions | undefined = workerEnabled
@@ -43,7 +48,7 @@ const releaseWorker: ReleaseWorkerServerOptions | undefined = workerEnabled
       runObservation: async (request) =>
         await runReleaseStewardObservation({
           ...request,
-          model: bedrockModel!,
+          model: workerBedrockModel!,
           modelMode: "bedrock-live",
         }),
       ...(githubIssueActionEnabled
@@ -51,7 +56,7 @@ const releaseWorker: ReleaseWorkerServerOptions | undefined = workerEnabled
             runIncidentAction: async (request) =>
               await runReleaseStewardIncidentAction({
                 plan: request.plan,
-                model: bedrockModel!,
+                model: workerBedrockModel!,
                 modelMode: "bedrock-live",
                 executeIncident: async (plan) =>
                   await executeGitHubIncident(plan, {
@@ -68,6 +73,17 @@ const app = await createQuietOpsServer({
   databasePath,
   decisionMode,
   ...(releaseCommit ? { releaseCommit } : {}),
+  ...(publicLiveProofEnabled
+    ? {
+        publicLiveVerification: {
+          run: async () =>
+            await runLiveReleaseVerification({
+              model: publicLiveProofModel!,
+              modelMode: "bedrock-live",
+            }),
+        },
+      }
+    : {}),
   ...(githubWebhookEnabled
     ? { githubWebhook: { secret: githubWebhookSecret!, policyProfile } }
     : {}),
@@ -87,6 +103,7 @@ console.log(
     databasePath,
     decisionMode,
     githubWebhookEnabled,
+    publicLiveProofEnabled,
     workerEnabled,
     singleReplicaConfirmed,
     policyProfile,

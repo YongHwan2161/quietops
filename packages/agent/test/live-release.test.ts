@@ -10,6 +10,7 @@ import {
   LIVE_RELEASE_EVIDENCE_TOOL_NAMES,
   runLiveReleaseVerification,
 } from "../src/index.js";
+import { ScriptedEvidenceModel } from "../src/scripted-model.js";
 
 const COMMIT = "294a5eb04e9667c797aa7a316d5896c84a4342a1";
 const MARKER_URL =
@@ -19,6 +20,7 @@ test("binds live source, CI, and deployment evidence through three Strands tools
   let githubCollections = 0;
   let deploymentCollections = 0;
   const result = await runLiveReleaseVerification({
+    modelMode: "injected-test",
     githubCollector: async () => {
       githubCollections += 1;
       return githubBundle();
@@ -33,7 +35,7 @@ test("binds live source, CI, and deployment evidence through three Strands tools
   assert.equal(deploymentCollections, 1);
   assert.equal(result.scenario, "live-release-verification");
   assert.equal(result.agentRuntime, "@strands-agents/sdk");
-  assert.equal(result.modelMode, "live-release-read-only-scripted");
+  assert.equal(result.modelMode, "injected-test");
   assert.deepEqual(
     result.toolCalls.map((call) => call.toolName),
     LIVE_RELEASE_EVIDENCE_TOOL_NAMES,
@@ -52,6 +54,18 @@ test("binds live source, CI, and deployment evidence through three Strands tools
   assert.equal(result.policy.outcome, "Ready");
   assert.deepEqual(result.policy.allowedHumanDecisions, []);
   assert.equal(result.externalMutations, 0);
+});
+
+test("refuses to label the scripted test model as Bedrock live proof", async () => {
+  await assert.rejects(
+    runLiveReleaseVerification({
+      model: new ScriptedEvidenceModel(LIVE_RELEASE_EVIDENCE_TOOL_NAMES),
+      modelMode: "bedrock-live",
+      githubCollector: async () => githubBundle(),
+      deploymentCollector: async () => deploymentBundle(),
+    }),
+    /bedrock-live mode refuses the scripted test model/,
+  );
 });
 
 function githubBundle(): GitHubEvidenceBundle {

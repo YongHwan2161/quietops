@@ -263,6 +263,7 @@ test("persists and replays one complete live release receipt per idempotency key
         runLiveReleaseVerification: () => {
           runnerCalls += 1;
           return runLiveReleaseVerification({
+            modelMode: "injected-test",
             githubCollector: async () => liveGitHubBundle(),
             deploymentCollector: async () => liveDeploymentBundle(),
           });
@@ -310,8 +311,23 @@ test("persists and replays one complete live release receipt per idempotency key
   }
 });
 
+test("requires an explicitly injected live release runner before persistence", async () => {
+  const ledger = new SQLiteEvaluationLedger();
+  try {
+    const service = new EvaluationService(ledger);
+    await assert.rejects(
+      service.startLiveReleaseVerification("release:unconfigured"),
+      /requires an explicitly injected runner/,
+    );
+    assert.deepEqual(ledger.listEvaluations(), []);
+  } finally {
+    ledger.close();
+  }
+});
+
 test("refuses to persist a live release receipt from a foreign deployment marker", async () => {
   const baseline = await runLiveReleaseVerification({
+    modelMode: "injected-test",
     githubCollector: async () => liveGitHubBundle(),
     deploymentCollector: async () => liveDeploymentBundle(),
   });

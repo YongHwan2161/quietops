@@ -176,13 +176,15 @@ test("lets a public visitor run and replay the fixed live release verification",
   const app = await createQuietOpsServer({
     decisionMode: "public-read-only",
     releaseCommit: RELEASE_COMMIT,
-    evaluationServiceOptions: {
-      runLiveReleaseVerification: () => {
+    publicLiveVerification: {
+      run: async () => {
         runnerCalls += 1;
-        return runLiveReleaseVerification({
+        const result = await runLiveReleaseVerification({
+          modelMode: "injected-test",
           githubCollector: async () => liveGitHubBundle(),
           deploymentCollector: async () => liveDeploymentBundle(),
         });
+        return Object.freeze({ ...result, modelMode: "bedrock-live" as const });
       },
     },
   });
@@ -233,9 +235,43 @@ test("lets a public visitor run and replay the fixed live release verification",
   }
 });
 
-test("fails a live verification request closed when release identity is absent", async () => {
-  const app = await createQuietOpsServer();
+test("rejects a non-Bedrock public proof result before persistence", async () => {
+  const app = await createQuietOpsServer({
+    decisionMode: "public-read-only",
+    releaseCommit: RELEASE_COMMIT,
+    publicLiveVerification: {
+      run: () =>
+        runLiveReleaseVerification({
+          modelMode: "injected-test",
+          githubCollector: async () => liveGitHubBundle(),
+          deploymentCollector: async () => liveDeploymentBundle(),
+        }),
+    },
+  });
+
   try {
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/live-verifications",
+    });
+    assert.equal(response.statusCode, 500);
+    assert.equal(response.json().error.code, "INTERNAL_ERROR");
+    const inbox = (
+      await app.inject({ method: "GET", url: "/api/inbox" })
+    ).json<{ items: unknown[] }>();
+    assert.equal(inbox.items.length, 0);
+  } finally {
+    await app.close();
+  }
+});
+
+test("fails a live verification request closed when its Bedrock runner is absent", async () => {
+  const app = await createQuietOpsServer({ releaseCommit: RELEASE_COMMIT });
+  try {
+    const inbox = (
+      await app.inject({ method: "GET", url: "/api/inbox" })
+    ).json<{ capabilities: { liveVerification: { enabled: boolean } } }>();
+    assert.equal(inbox.capabilities.liveVerification.enabled, false);
     const response = await app.inject({
       method: "POST",
       url: "/api/live-verifications",

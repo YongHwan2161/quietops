@@ -19,8 +19,8 @@ export const STRANDS_SDK_VERSION = "1.13.0" as const;
 export type MismatchModelMode =
   | "credential-free-scripted"
   | "bedrock-live"
-  | "github-public-read-only-scripted"
-  | "live-release-read-only-scripted";
+  | "injected-test"
+  | "github-public-read-only-scripted";
 
 export type RunMismatchOptions =
   | {

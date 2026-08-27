@@ -3,6 +3,7 @@ export {
   type CreateQuietOpsServerOptions,
   type DecisionMode,
   type GitHubWebhookServerOptions,
+  type PublicLiveVerificationServerOptions,
   type ReleaseDecisionServerOptions,
   type ReleaseWorkerServerOptions,
 } from "./server.js";

@@ -3,7 +3,7 @@ import {
   type DeploymentEvidenceBundle,
   type GitHubEvidenceBundle,
 } from "@quietops/adapters";
-import { Agent } from "@strands-agents/sdk";
+import { Agent, type Model } from "@strands-agents/sdk";
 
 import type { ReleaseSliceResult } from "./run-mismatch.js";
 import { evaluateReleaseMismatch } from "./policy.js";
@@ -25,19 +25,43 @@ export interface LiveReleaseVerificationResult extends ReleaseSliceResult<"live-
   };
 }
 
-export interface RunLiveReleaseVerificationOptions {
+interface LiveReleaseVerificationCollectors {
   readonly githubCollector?: () => Promise<GitHubEvidenceBundle>;
   readonly deploymentCollector?: () => Promise<DeploymentEvidenceBundle>;
 }
 
+export type RunLiveReleaseVerificationOptions =
+  LiveReleaseVerificationCollectors &
+    (
+      | {
+          readonly model?: Model;
+          readonly modelMode: "injected-test";
+        }
+      | {
+          readonly model: Model;
+          readonly modelMode: "bedrock-live";
+        }
+    );
+
 export async function runLiveReleaseVerification(
-  options: RunLiveReleaseVerificationOptions = {},
+  options: RunLiveReleaseVerificationOptions,
 ): Promise<LiveReleaseVerificationResult> {
+  if (
+    options.modelMode === "bedrock-live" &&
+    options.model.getConfig().modelId ===
+      "quietops-credential-free-scripted-model"
+  ) {
+    throw new Error(
+      "Live release bedrock-live mode refuses the scripted test model.",
+    );
+  }
   const recorder = createEvidenceRecorder();
-  const model = new ScriptedEvidenceModel(
-    LIVE_RELEASE_EVIDENCE_TOOL_NAMES,
-    "Source, required CI, and deployed revision evidence collected. Deterministic release policy is authoritative.",
-  );
+  const model =
+    options.model ??
+    new ScriptedEvidenceModel(
+      LIVE_RELEASE_EVIDENCE_TOOL_NAMES,
+      "Source, required CI, and deployed revision evidence collected. Deterministic release policy is authoritative.",
+    );
   const agent = new Agent({
     model,
     plugins: [new EvidenceToolBudget(LIVE_RELEASE_EVIDENCE_TOOL_NAMES)],
@@ -67,7 +91,7 @@ export async function runLiveReleaseVerification(
     scenario: "live-release-verification",
     agentRuntime: "@strands-agents/sdk",
     agentRuntimeVersion: STRANDS_SDK_VERSION,
-    modelMode: "live-release-read-only-scripted",
+    modelMode: options.modelMode,
     modelNarration: agentResult.toString(),
     candidate: Object.freeze({
       repository: QUIETOPS_GITHUB_TARGET.repository,

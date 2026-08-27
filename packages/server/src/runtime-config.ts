@@ -21,6 +21,7 @@ export interface QuietOpsRuntimeConfig {
   readonly decisionMode: DecisionMode;
   readonly databasePath: string;
   readonly releaseCommit?: string;
+  readonly publicLiveProofEnabled: boolean;
   readonly workerEnabled: boolean;
   readonly singleReplicaConfirmed: boolean;
   readonly policyProfile: PolicyProfileName;
@@ -42,6 +43,10 @@ export function resolveQuietOpsRuntimeConfig(
   const releaseCommit = resolveReleaseCommit(
     environment.QUIETOPS_RELEASE_COMMIT,
     environment.RAILWAY_GIT_COMMIT_SHA,
+  );
+  const publicLiveProofEnabled = parseBooleanFlag(
+    environment.QUIETOPS_PUBLIC_LIVE_PROOF_ENABLED,
+    "QUIETOPS_PUBLIC_LIVE_PROOF_ENABLED",
   );
   const workerEnabled = parseBooleanFlag(
     environment.QUIETOPS_WORKER_ENABLED,
@@ -91,6 +96,16 @@ export function resolveQuietOpsRuntimeConfig(
       "QUIETOPS_HOST=0.0.0.0 requires a full QUIETOPS_RELEASE_COMMIT or RAILWAY_GIT_COMMIT_SHA.",
     );
   }
+  if (
+    publicLiveProofEnabled &&
+    (host !== "0.0.0.0" ||
+      decisionMode !== "public-read-only" ||
+      releaseCommit === undefined)
+  ) {
+    throw new Error(
+      "QUIETOPS_PUBLIC_LIVE_PROOF_ENABLED=true requires the fixed public read-only runtime and release commit.",
+    );
+  }
   if (workerEnabled) {
     if (
       host !== "0.0.0.0" ||
@@ -133,6 +148,7 @@ export function resolveQuietOpsRuntimeConfig(
     port,
     decisionMode,
     databasePath,
+    publicLiveProofEnabled,
     workerEnabled,
     singleReplicaConfirmed,
     policyProfile,

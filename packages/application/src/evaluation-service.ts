@@ -10,7 +10,6 @@ import {
   READY_FIXTURE,
   evaluateReleaseMismatch,
   runLiveGitHubSourceCiSlice,
-  runLiveReleaseVerification,
   runReleaseSlice,
   type EvidenceKind,
   type EvidenceObservation,
@@ -177,7 +176,8 @@ export class EvaluationService {
     fixture: ReleaseFixture,
   ) => Promise<ReleaseSliceResult>;
   readonly #runLiveGitHubSourceCi: () => Promise<LiveGitHubSourceCiSliceResult>;
-  readonly #runLiveReleaseVerification: () => Promise<LiveReleaseVerificationResult>;
+  readonly #runLiveReleaseVerification:
+    (() => Promise<LiveReleaseVerificationResult>) | undefined;
   readonly #liveReleaseRuns = new Map<
     string,
     Promise<LiveReleaseVerificationCommandResult>
@@ -195,8 +195,7 @@ export class EvaluationService {
       options.runScenario ?? ((fixture) => runReleaseSlice(fixture));
     this.#runLiveGitHubSourceCi =
       options.runLiveGitHubSourceCi ?? runLiveGitHubSourceCiSlice;
-    this.#runLiveReleaseVerification =
-      options.runLiveReleaseVerification ?? runLiveReleaseVerification;
+    this.#runLiveReleaseVerification = options.runLiveReleaseVerification;
   }
 
   async startDemoEvaluation(
@@ -459,6 +458,11 @@ export class EvaluationService {
     readonly evaluation: NewEvaluationRecord;
     readonly events: readonly NewLedgerEvent[];
   }> {
+    if (!this.#runLiveReleaseVerification) {
+      throw new Error(
+        "Live release verification requires an explicitly injected runner.",
+      );
+    }
     const result = await this.#runLiveReleaseVerification();
     requireResultMatchesScenario(result, "live-release-verification");
     return this.#buildEvaluationEvents(

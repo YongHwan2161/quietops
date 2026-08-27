@@ -114,10 +114,22 @@ export interface ReleaseDecisionServerOptions {
   readonly now?: () => Date;
 }
 
+type LiveReleaseVerificationRunner = NonNullable<
+  EvaluationServiceOptions["runLiveReleaseVerification"]
+>;
+
+export interface PublicLiveVerificationServerOptions {
+  readonly run: LiveReleaseVerificationRunner;
+}
+
 export interface CreateQuietOpsServerOptions {
   readonly databasePath?: string;
   readonly seedDemo?: boolean;
-  readonly evaluationServiceOptions?: EvaluationServiceOptions;
+  readonly evaluationServiceOptions?: Omit<
+    EvaluationServiceOptions,
+    "runLiveReleaseVerification"
+  >;
+  readonly publicLiveVerification?: PublicLiveVerificationServerOptions;
   readonly logger?: FastifyServerOptions["logger"];
   readonly decisionMode?: DecisionMode;
   readonly releaseCommit?: string;
@@ -148,10 +160,23 @@ export async function createQuietOpsServer(
   const ledger = new SQLiteEvaluationLedger(options.databasePath);
   const releaseRunLedger = new SQLiteReleaseRunLedger(options.databasePath);
   const releaseRunService = new ReleaseRunService(releaseRunLedger);
-  const service = new EvaluationService(
-    ledger,
-    options.evaluationServiceOptions,
-  );
+  const publicLiveVerificationRunner = options.publicLiveVerification?.run;
+  const service = new EvaluationService(ledger, {
+    ...options.evaluationServiceOptions,
+    ...(publicLiveVerificationRunner
+      ? {
+          runLiveReleaseVerification: async () => {
+            const result = await publicLiveVerificationRunner();
+            if (result.modelMode !== "bedrock-live") {
+              throw new Error(
+                "Public live verification requires a bedrock-live result.",
+              );
+            }
+            return result;
+          },
+        }
+      : {}),
+  });
   const app = Fastify({
     bodyLimit: 16 * 1024,
     logger: options.logger ?? false,
@@ -482,7 +507,9 @@ export async function createQuietOpsServer(
     capabilities: Object.freeze({
       decisionMode,
       liveVerification: Object.freeze({
-        enabled: releaseCommit !== undefined,
+        enabled:
+          releaseCommit !== undefined &&
+          publicLiveVerificationRunner !== undefined,
         repository: QUIETOPS_REPOSITORY,
         branch: "main",
       }),
@@ -491,12 +518,12 @@ export async function createQuietOpsServer(
   }));
 
   app.post("/api/live-verifications", async (_request, reply) => {
-    if (!releaseCommit) {
+    if (!releaseCommit || !publicLiveVerificationRunner) {
       sendError(
         reply,
         503,
         "LIVE_VERIFICATION_NOT_CONFIGURED",
-        "Live release verification requires a configured release identity.",
+        "Live release verification requires a configured release identity and Bedrock live runner.",
       );
       return;
     }

@@ -37,8 +37,8 @@ Implements:
 
 | Concern          | Current code                                                                  | Required P0 change                                                                                         |
 | ---------------- | ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| Trigger          | `POST /api/live-verifications` is user-started                                | Signed GitHub `push` webhook creates the run and returns `202` before work begins                          |
-| Agent lifecycle  | One scripted Strands invocation calls three fixed tools                       | One live Bedrock-backed Strands invocation per durable observation cycle; scripted model remains test-only |
+| Trigger          | Default-off `POST /api/live-verifications` is user-started                     | Signed GitHub `push` webhook creates the run and returns `202` before work begins                          |
+| Agent lifecycle  | Public execution requires an injected Bedrock runner; scripted mode is test-only | One live Bedrock-backed Strands invocation per durable observation cycle; scripted model remains test-only |
 | Persistence      | The evaluation is committed after all collection completes                    | Run identity and every transition are committed before waits, decisions, and external actions              |
 | Waiting          | No durable scheduler or intermediate state                                    | SQLite-backed due time, lease, restart recovery, and one policy-bounded extension                          |
 | Decision         | `Reject` or `Re-check requested` acknowledges a completed mismatch evaluation | One expiring `WAIT_AND_RECHECK` or `ESCALATE_INCIDENT` decision resumes the same active run                |
@@ -462,6 +462,7 @@ or tool name from the browser or model.
 
 New configuration is fail-closed:
 
+- `QUIETOPS_PUBLIC_LIVE_PROOF_ENABLED=true` only for the separate user-started Bedrock proof
 - `QUIETOPS_WORKER_ENABLED=true`
 - `QUIETOPS_SINGLE_REPLICA_CONFIRMED=true` only after external topology verification
 - `QUIETOPS_POLICY_PROFILE=demo-v1|standard-v1`
